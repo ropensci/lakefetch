@@ -1,3 +1,21 @@
+# lakefetch (development)
+
+## Bug fixes
+
+* **`fetch_mean`/`fetch_max`/`fetch_effective` returned `NaN`/`-Inf` instead
+  of `NA` for sites outside their assigned lake polygon**: Since v0.1.4,
+  `get_highres_fetch()` returns `NA` for every ray when a site's (possibly
+  nudged) point falls outside the lake polygon it was matched to - e.g. a
+  site within `gps_tolerance_m` of a lake but farther than
+  `buffer_distance_m` from the shoreline, so `nudge_inward()` cannot pull it
+  back inside. `rowMeans()`/`max()` with `na.rm = TRUE` silently turn that
+  all-`NA` row into `NaN` (mean) and `-Inf` (max) instead of `NA`, and the
+  same happened in all three `calc_effective_fetch()` methods. This was
+  silent - no warning was raised, unlike the existing "site(s) not matched
+  to any lake" warning for sites that fail lake assignment entirely.
+  `fetch_calculate()` now returns clean `NA_real_` for these sites and
+  raises a warning naming them, so the condition is no longer silent.
+
 # lakefetch 0.1.13
 
 rOpenSci review [ropensci/software-review#762](https://github.com/ropensci/software-review/issues/762)

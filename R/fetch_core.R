@@ -493,8 +493,30 @@ calculate_fetch_single_lake <- function(sites, lake_polygon, utm_epsg,
   fetch_cols <- grep("^fetch_[0-9]", names(results), value = TRUE)
   fetch_values <- as.matrix(results[, fetch_cols])
 
+  # Sites whose (possibly nudged) point still falls outside the lake polygon
+  # get NA for every ray (see get_highres_fetch()). This is distinct from the
+  # "unmatched to any lake" case: these sites matched a lake within
+  # gps_tolerance_m, but sit outside the polygon by more than
+  # buffer_distance_m, so nudge_inward() left them in place. rowMeans()/max()
+  # with na.rm = TRUE silently turn an all-NA row into NaN/-Inf, so those rows
+  # are handled explicitly below to keep the output NA and to warn the user,
+  # since this case is otherwise silent.
+  all_na_row <- apply(fetch_values, 1, function(x) all(is.na(x)))
+  if (any(all_na_row)) {
+    warning(sum(all_na_row), " site(s) matched to a lake but fell outside its ",
+            "polygon by more than buffer_distance_m (", get_opt("buffer_distance_m"),
+            " m), so fetch could not be calculated (values will be NA): ",
+            paste(results$Site[all_na_row], collapse = ", "),
+            ". This can happen when GPS/OSM coordinates don't perfectly align. ",
+            "Consider increasing buffer_distance_m via lakefetch_options(), or ",
+            "verify the site coordinates against the lake polygon.")
+  }
+
   results$fetch_mean <- rowMeans(fetch_values, na.rm = TRUE)
-  results$fetch_max <- apply(fetch_values, 1, max, na.rm = TRUE)
+  results$fetch_mean[all_na_row] <- NA_real_
+  results$fetch_max <- apply(fetch_values, 1, function(x) {
+    if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE)
+  })
 
   # Calculate effective fetch using specified method
   results$fetch_effective <- calc_effective_fetch(fetch_values, angles, fetch_method)
@@ -700,11 +722,14 @@ calc_effective_fetch <- function(fetch_matrix, angles, method = "top3") {
 
   if (method == "max") {
     # Simple maximum
-    return(apply(fetch_matrix, 1, max, na.rm = TRUE))
+    return(apply(fetch_matrix, 1, function(x) {
+      if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE)
+    }))
 
   } else if (method == "top3") {
     # Mean of 3 highest values
     return(apply(fetch_matrix, 1, function(x) {
+      if (all(is.na(x))) return(NA_real_)
       mean(sort(x, decreasing = TRUE)[1:3], na.rm = TRUE)
     }))
 
@@ -719,6 +744,7 @@ calc_effective_fetch <- function(fetch_matrix, angles, method = "top3") {
     radial_spacing <- 6  # degrees
 
     return(apply(fetch_matrix, 1, function(fetch_row) {
+      if (all(is.na(fetch_row))) return(NA_real_)
       # Find direction of maximum fetch
       max_idx <- which.max(fetch_row)
       max_angle <- angles[max_idx]
