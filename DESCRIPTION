@@ -1,6 +1,6 @@
 Package: lakefetch
 Title: Calculate Fetch and Wave Exposure for Lake Sampling Points
-Version: 0.1.13
+Version: 0.1.14
 Authors@R:
     person(given = "Jeremy",
            family = "Lynch Farrell",

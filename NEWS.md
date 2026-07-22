@@ -1,4 +1,4 @@
-# lakefetch (development)
+# lakefetch 0.1.14
 
 ## Bug fixes
 
