@@ -34,14 +34,12 @@
 #'   \item lake_watershed_ratio: Lake area / watershed area
 #' }
 #'
-#' @examples
-#' \donttest{
+#' @examplesIf interactive()
 #' csv_path <- system.file("extdata", "sample_sites.csv", package = "lakefetch")
 #' sites <- load_sites(csv_path)
 #' lake <- get_lake_boundary(sites)
 #' results <- fetch_calculate(sites, lake)
 #' results_with_context <- add_lake_context(results$results, results$lakes, lake$utm_epsg)
-#' }
 #'
 #' @export
 add_lake_context <- function(fetch_results, lake_polygons, utm_epsg) {
@@ -68,9 +66,29 @@ add_lake_context <- function(fetch_results, lake_polygons, utm_epsg) {
 
   message("Adding lake context (NHD integration)...")
 
+  # Skip NHD integration entirely if no lakes were matched. This happens when
+  # all sites fail assignment (e.g., a site provided as being in "Long Lake"
+  # but coordinates were >500m from any OSM Long Lake polygon). In that case
+  # the bbox would contain NAs and nhdplusTools::get_waterbodies() would
+  # error out with "!anyNA(x) is not TRUE".
+  if (is.null(lake_polygons) || nrow(lake_polygons) == 0) {
+    message("  No matched lake polygons - skipping NHD lookup")
+    message("Lake context complete.")
+    return(fetch_results)
+  }
+
   # Get bounding box for all lakes
   lake_polygons_wgs84 <- sf::st_transform(lake_polygons, 4326)
   bbox <- sf::st_bbox(lake_polygons_wgs84)
+
+  # Defensive check: a bbox with any NA coordinates will fail downstream.
+  # This can happen if lake_polygons contains only empty geometries.
+  if (anyNA(as.numeric(bbox))) {
+    message("  Lake bounding box contains NA - skipping NHD lookup")
+    message("Lake context complete.")
+    return(fetch_results)
+  }
+
   bbox[1] <- bbox[1] - 0.1
   bbox[2] <- bbox[2] - 0.1
   bbox[3] <- bbox[3] + 0.1
@@ -152,13 +170,13 @@ add_lake_context <- function(fetch_results, lake_polygons, utm_epsg) {
       if (has_inlet) {
         fetch_results$inlet_count[i] <- nrow(outlets_inlets$inlets)
 
-        inlet_dists <- sapply(seq_len(nrow(outlets_inlets$inlets)), function(j) {
+        inlet_dists <- vapply(seq_len(nrow(outlets_inlets$inlets)), function(j) {
           calc_distance_bearing(
             sf::st_geometry(site_pt_wgs84),
             sf::st_geometry(outlets_inlets$inlets[j, ]),
             utm_epsg
           )$dist_m
-        })
+        }, numeric(1))
 
         nearest_inlet_idx <- which.min(inlet_dists)
         nearest_inlet <- outlets_inlets$inlets[nearest_inlet_idx, ]
@@ -226,12 +244,12 @@ match_lake_to_nhd <- function(lake_polygon_wgs84, nhd_waterbodies) {
   }
 
   if (length(intersects) > 1) {
-    overlaps <- sapply(intersects, function(i) {
+    overlaps <- vapply(intersects, function(i) {
       tryCatch({
         inter <- sf::st_intersection(lake_polygon_wgs84, nhd_waterbodies[i, ])
         as.numeric(sf::st_area(inter))
       }, error = function(e) 0)
-    })
+    }, numeric(1))
     best_match <- intersects[which.max(overlaps)]
   } else {
     best_match <- intersects[1]
@@ -270,7 +288,7 @@ get_outlets_inlets <- function(lake_nhd, lake_polygon_wgs84) {
     # Find flowlines that touch the lake boundary
     lake_boundary <- sf::st_boundary(lake_polygon_wgs84)
     touching <- sf::st_intersects(flowlines, sf::st_buffer(lake_boundary, 0.0001))
-    connected_idx <- which(sapply(touching, length) > 0)
+    connected_idx <- which(vapply(touching, length, integer(1)) > 0)
 
     if (length(connected_idx) == 0) {
       message("    No connected flowlines found")

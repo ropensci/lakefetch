@@ -251,3 +251,112 @@ test_that("calc_distance_bearing gets correct bearing directions", {
   result_w <- lakefetch:::calc_distance_bearing(origin, west_pt, 32618)
   expect_equal(result_w$bearing, "W")
 })
+
+# --- add_lake_context defensive handling of empty / NA-bbox inputs ---
+
+test_that("add_lake_context returns fetch_results unchanged when lake_polygons is empty", {
+  skip_if_not_installed("nhdplusTools")
+
+  # Build minimal fetch_results with NA-typed columns
+  fetch_results <- sf::st_sf(
+    Site = "S1",
+    lake_osm_id = NA_character_,
+    geometry = sf::st_sfc(sf::st_point(c(500000, 4800000)), crs = 32618)
+  )
+
+  # Empty lake polygons (no rows)
+  empty_lakes <- sf::st_sf(
+    osm_id = character(0),
+    geometry = sf::st_sfc(crs = 32618)
+  )
+
+  # Should not error, should not call NHD network, and should still add the
+  # NA placeholder columns expected of add_lake_context.
+  expect_message(
+    result <<- lakefetch::add_lake_context(fetch_results, empty_lakes,
+                                            utm_epsg = 32618),
+    "No matched lake polygons"
+  )
+
+  expect_s3_class(result, "sf")
+  expect_true("nhd_permanent_id" %in% names(result))
+  expect_true(all(is.na(result$nhd_permanent_id)))
+})
+
+test_that("add_lake_context skips NHD lookup when lake bbox contains NA", {
+  skip_if_not_installed("nhdplusTools")
+
+  fetch_results <- sf::st_sf(
+    Site = "S1",
+    lake_osm_id = NA_character_,
+    geometry = sf::st_sfc(sf::st_point(c(500000, 4800000)), crs = 32618)
+  )
+
+  # Lake polygons with an empty geometry produces an NA bbox
+  empty_geom_lakes <- sf::st_sf(
+    osm_id = "empty",
+    geometry = sf::st_sfc(sf::st_polygon(), crs = 32618)
+  )
+
+  expect_message(
+    result <<- lakefetch::add_lake_context(fetch_results, empty_geom_lakes,
+                                            utm_epsg = 32618),
+    "NA - skipping NHD|No matched lake polygons"
+  )
+
+  expect_s3_class(result, "sf")
+  expect_true("nhd_permanent_id" %in% names(result))
+})
+
+test_that("get_watershed_area returns NA when nhdplusTools unavailable", {
+  # Simulate nhdplusTools not being installed
+  local_mocked_bindings(
+    nhd_available = function() FALSE,
+    .package = "lakefetch"
+  )
+
+  ring <- matrix(c(-74, 43, -73.99, 43, -73.99, 43.01,
+                   -74, 43.01, -74, 43),
+                 ncol = 2, byrow = TRUE)
+  lake_polygon_wgs84 <- sf::st_sf(
+    geometry = sf::st_sfc(sf::st_polygon(list(ring)), crs = 4326)
+  )
+  result <- lakefetch:::get_watershed_area(NULL, lake_polygon_wgs84)
+  expect_true(is.na(result))
+})
+
+test_that("get_watershed_area returns NA when discover_nhdplus_id fails", {
+  skip_if_not_installed("nhdplusTools")
+
+  ring <- matrix(c(-74, 43, -73.99, 43, -73.99, 43.01,
+                   -74, 43.01, -74, 43),
+                 ncol = 2, byrow = TRUE)
+  lake_polygon_wgs84 <- sf::st_sf(
+    geometry = sf::st_sfc(sf::st_polygon(list(ring)), crs = 4326)
+  )
+
+  local_mocked_bindings(
+    .package = "nhdplusTools",
+    discover_nhdplus_id = function(point) stop("mock network failure")
+  )
+  result <- lakefetch:::get_watershed_area(NULL, lake_polygon_wgs84)
+  expect_true(is.na(result))
+})
+
+test_that("get_watershed_area returns NA when no NHD comid is returned", {
+  skip_if_not_installed("nhdplusTools")
+
+  ring <- matrix(c(-74, 43, -73.99, 43, -73.99, 43.01,
+                   -74, 43.01, -74, 43),
+                 ncol = 2, byrow = TRUE)
+  lake_polygon_wgs84 <- sf::st_sf(
+    geometry = sf::st_sfc(sf::st_polygon(list(ring)), crs = 4326)
+  )
+
+  local_mocked_bindings(
+    .package = "nhdplusTools",
+    discover_nhdplus_id = function(point) NULL
+  )
+  result <- lakefetch:::get_watershed_area(NULL, lake_polygon_wgs84)
+  expect_true(is.na(result))
+})

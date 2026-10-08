@@ -1,0 +1,66 @@
+url: https://docs.ropensci.org/lakefetch/
+
+template:
+  bootstrap: 5
+
+navbar:
+  structure:
+    left: [intro, reference, articles, news]
+    right: [search, github]
+  components:
+    github:
+      icon: fa-github
+      href: https://github.com/ropensci/lakefetch
+
+reference:
+  - title: Package
+    contents:
+      - lakefetch-package
+
+  - title: Core Workflow
+    desc: Main functions for calculating fetch
+    contents:
+      - load_sites
+      - get_lake_boundary
+      - fetch_calculate
+
+  - title: Visualization
+    desc: Plotting and mapping functions
+    contents:
+      - plot_fetch_map
+      - plot_fetch_bars
+      - plot_fetch_rose
+      - create_ray_geometries
+
+  - title: Optional Enrichment
+    desc: Add depth, weather, or hydrological context
+    contents:
+      - add_lake_depth
+      - get_lake_depth
+      - add_weather_context
+      - add_lake_context
+
+  - title: Configuration
+    desc: Package options
+    contents:
+      - lakefetch_options
+      - lakefetch_reset_options
+
+  - title: Utilities
+    desc: Helper functions
+    contents:
+      - assign_sites_to_lakes
+      - sanitize_filename
+
+  - title: Interactive Apps
+    desc: Shiny applications
+    contents:
+      - fetch_app
+      - fetch_app_upload
+
+  - title: Datasets
+    desc: Built-in example data
+    contents:
+      - adirondack_sites
+      - example_lake
+      - wisconsin_lakes

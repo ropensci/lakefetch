@@ -1,6 +1,6 @@
 Package: lakefetch
 Title: Calculate Fetch and Wave Exposure for Lake Sampling Points
-Version: 0.1.3
+Version: 0.1.14
 Authors@R:
     person(given = "Jeremy",
            family = "Lynch Farrell",
@@ -38,5 +38,6 @@ Suggests:
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-URL: https://github.com/jeremylfarrell/lakefetch
-BugReports: https://github.com/jeremylfarrell/lakefetch/issues
+URL: https://docs.ropensci.org/lakefetch,
+    https://github.com/ropensci/lakefetch
+BugReports: https://github.com/ropensci/lakefetch/issues

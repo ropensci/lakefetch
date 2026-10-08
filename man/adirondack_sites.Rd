@@ -41,12 +41,11 @@ data(adirondack_sites)
 # View structure
 str(adirondack_sites)
 
+\dontshow{if (interactive()) withAutoprint(\{ # examplesIf}
 # Use with lakefetch (requires internet connection)
-\donttest{
 sites <- load_sites(adirondack_sites)
 lake_data <- get_lake_boundary(sites)
 results <- fetch_calculate(sites, lake_data)
-}
-
+\dontshow{\}) # examplesIf}
 }
 \keyword{datasets}

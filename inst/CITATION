@@ -4,5 +4,5 @@ bibentry(
   author   = person("Jeremy Lynch", "Farrell", email = "farrej2@rpi.edu", role = c("aut", "cre")),
   year     = "2026",
   note     = "R package version 0.1.3",
-  url      = "https://github.com/jeremylfarrell/lakefetch"
+  url      = "https://github.com/ropensci/lakefetch"
 )

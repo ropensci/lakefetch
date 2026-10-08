@@ -1,26 +1,39 @@
-## Resubmission (v0.1.3)
+## Resubmission (v0.1.14)
 
-Addressing feedback from Benjamin Altmann (third review):
+This resubmission jumps from the currently-published CRAN version (0.1.3) to
+0.1.14. In between, the package underwent formal peer review through
+rOpenSci ([ropensci/software-review#762](https://github.com/ropensci/software-review/issues/762),
+reviewers Jorrit Mesman and Khondula, editor Pakillo), which was approved on
+2026-07-20. Versions 0.1.4-0.1.13 are the incremental responses to that
+review; none were previously submitted to CRAN. Full details of every
+version are in `NEWS.md`; the highlights are:
 
-* Removed all commented-out code lines from `@examples` in `add_lake_depth()`
-  and `get_lake_boundary()`. The `add_lake_depth()` example previously showed
-  user-supplied depths as commented-out pseudocode; this is now replaced with
-  runnable code using `lake_id <- results$lakes$osm_id[1]`. The
-  `get_lake_boundary()` example had a commented-out local-file alternative;
-  this line has been removed (the `file` argument is documented in `@param`).
+* Several bug fixes surfaced by review and testing, most notably:
+  - Invalid UTM EPSG codes when input was already in a projected CRS
+  - Silent (non-warning) failures when sites could not be matched to a lake
+  - `plot_fetch_rose()` overplotting after Shiny/ggplot2 device state changes
+  - `fetch_mean()`/`fetch_max()`/`fetch_effective()` returning `NaN`/`-Inf`
+    instead of `NA` for sites that matched a lake but fell outside its
+    polygon (fixed in this release, v0.1.14)
+* Robustness/timeout handling improvements for `get_lake_boundary()`'s
+  OpenStreetMap downloads (bounded worst-case wait, `total_timeout_s` arg)
+* Repository transferred from `jeremylfarrell/lakefetch` to
+  `ropensci/lakefetch` following review approval; all links (README,
+  DESCRIPTION, man pages, `codemeta.json`, `CITATION`) updated accordingly
+* Removal of unused internal helper functions flagged during review
 
 ## R CMD check results
 
 0 errors | 0 warnings | 1 note
 
-NOTE: "Hydrography" and "hydrological" flagged as possibly misspelled —
-both are correct technical terms referring to the National Hydrography
-Dataset (NHD) from the USGS.
+NOTE: "unable to verify current time" — a routine environment-clock check,
+not related to package content.
 
 ## Test environments
 
 * Local: Windows 11 x64 (build 26200), R 4.4.1
-* Win-builder: Windows Server 2022, R-devel (2026-03-16 r89642)
+* Win-builder: R-devel, R-release
+* R-hub: Linux, macOS ARM64, Windows (R-devel)
 
 ## Downstream dependencies
 

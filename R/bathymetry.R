@@ -139,8 +139,7 @@ estimate_depth_empirical <- function(lake_area_km2) {
 #'
 #' @return fetch_results with added depth columns
 #'
-#' @examples
-#' \donttest{
+#' @examplesIf interactive()
 #' data(adirondack_sites)
 #' sites <- load_sites(adirondack_sites)
 #' lake <- get_lake_boundary(sites)
@@ -153,7 +152,6 @@ estimate_depth_empirical <- function(lake_area_km2) {
 #' lake_id <- results$lakes$osm_id[1]
 #' depths <- setNames(15.5, lake_id)
 #' results$results <- add_lake_depth(results$results, results$lakes, user_depths = depths)
-#' }
 #'
 #' @export
 add_lake_depth <- function(fetch_results, lakes, user_depths = NULL) {
@@ -180,81 +178,22 @@ add_lake_depth <- function(fetch_results, lakes, user_depths = NULL) {
   }
 
   # Add depth columns to results
-  fetch_results$depth_mean_m <- sapply(fetch_results$lake_osm_id, function(id) {
+  fetch_results$depth_mean_m <- vapply(fetch_results$lake_osm_id, function(id) {
     if (is.na(id) || is.null(depth_lookup[[id]])) NA_real_
     else depth_lookup[[id]]$depth_mean
-  })
+  }, numeric(1))
 
-  fetch_results$depth_max_m <- sapply(fetch_results$lake_osm_id, function(id) {
+  fetch_results$depth_max_m <- vapply(fetch_results$lake_osm_id, function(id) {
     if (is.na(id) || is.null(depth_lookup[[id]])) NA_real_
     else depth_lookup[[id]]$depth_max
-  })
+  }, numeric(1))
 
-  fetch_results$depth_source <- sapply(fetch_results$lake_osm_id, function(id) {
+  fetch_results$depth_source <- vapply(fetch_results$lake_osm_id, function(id) {
     if (is.na(id) || is.null(depth_lookup[[id]])) NA_character_
     else depth_lookup[[id]]$source
-  })
+  }, character(1))
 
   return(fetch_results)
 }
 
 
-#' Estimate Depth at Specific Site Location
-#'
-#' For lakes with bathymetry data, estimates depth at a specific site.
-#' Currently uses mean depth as proxy; future versions may support
-#' bathymetry grids.
-#'
-#' @param site_point sf point of the site location
-#' @param lake_polygon sf polygon of the lake
-#' @param depth_mean Mean depth of the lake
-#' @param depth_max Maximum depth of the lake
-#' @param position Relative position in lake ("shore", "middle", "unknown")
-#'
-#' @return Estimated depth at site in meters
-#'
-#' @details
-#' Without detailed bathymetry, estimates site depth based on:
-#' - Distance from shore (closer = shallower)
-#' - Lake mean/max depth relationship
-#'
-#' Uses a simple linear interpolation assuming depth increases
-#' linearly from shore (0m) to center (max_depth).
-#'
-#' @noRd
-estimate_site_depth <- function(site_point, lake_polygon, depth_mean,
-                                depth_max = NULL, position = "unknown") {
-
-  if (is.na(depth_mean)) return(NA_real_)
-  if (is.null(depth_max) || is.na(depth_max)) depth_max <- depth_mean * 2.5
-
-  # Calculate relative distance from shore to center
-  # Get distance to shore
-  shore <- sf::st_boundary(lake_polygon)
-  dist_to_shore <- as.numeric(sf::st_distance(site_point, shore))
-
-  # Get distance to centroid (approximate center)
-  center <- sf::st_centroid(sf::st_union(lake_polygon))
-  dist_to_center <- as.numeric(sf::st_distance(site_point, center))
-
-  # Total distance shore to center
-  dist_shore_to_center <- as.numeric(sf::st_distance(shore, center))
-
-  # Relative position (0 = at shore, 1 = at center)
-  if (dist_shore_to_center > 0) {
-    relative_pos <- dist_to_shore / (dist_to_shore + dist_to_center)
-  } else {
-    relative_pos <- 0.5  # Default to middle
-  }
-
-  # Estimate depth using parabolic profile
-
-  # Depth at position r: D(r) = Dmax * (1 - (1-r)^2) approximately
-  # This gives shallower near shore, deeper in middle
-  estimated_depth <- depth_max * (1 - (1 - relative_pos)^2)
-
-  # Don't let it exceed max or go below 0.5m
-  estimated_depth <- max(0.5, min(estimated_depth, depth_max))
-
-  return(estimated_depth)
-}

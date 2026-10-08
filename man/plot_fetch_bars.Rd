@@ -18,12 +18,11 @@ A ggplot2 object
 Create a bar chart showing effective fetch by site.
 }
 \examples{
-\donttest{
+\dontshow{if (interactive()) withAutoprint(\{ # examplesIf}
 csv_path <- system.file("extdata", "sample_sites.csv", package = "lakefetch")
 sites <- load_sites(csv_path)
 lake <- get_lake_boundary(sites)
 results <- fetch_calculate(sites, lake)
 plot_fetch_bars(results)
-}
-
+\dontshow{\}) # examplesIf}
 }

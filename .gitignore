@@ -32,7 +32,24 @@ Thumbs.db
 \#*\#
 .\#*
 /doc/
+/docs/
 /Meta/
 
 # Working/development files
 /working/
+
+# Stale package duplicate / deployment artifacts (not part of source tree)
+/pkg/
+/shinyapps/
+/rsconnect/
+Rplots.pdf
+.claude/
+
+# testthat debug dumps from failed runs
+/tests/testthat/_problems/
+/tests/testthat/testthat-problems.rds
+
+# Personal working notes for the rOpenSci review, not package content
+/ropensci-submission-draft.md
+/ropensci-response-draft.md
+/ropensci-ci-website-fix-comment.md

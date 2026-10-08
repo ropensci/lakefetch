@@ -18,12 +18,21 @@ A ggplot2 object
 Create a map showing site locations colored by exposure category.
 }
 \examples{
-\donttest{
-csv_path <- system.file("extdata", "sample_sites.csv", package = "lakefetch")
-sites <- load_sites(csv_path)
-lake <- get_lake_boundary(sites)
-results <- fetch_calculate(sites, lake)
+# Use the bundled example lake (Blue Mountain Lake, NY) and the
+# matching sample sites to compute and plot fetch offline.
+data(example_lake)
+sites_df <- load_sites(system.file("extdata", "sample_sites.csv",
+                                    package = "lakefetch"))
+sites_sf <- sf::st_transform(
+  sf::st_as_sf(sites_df,
+               coords = c("longitude", "latitude"), crs = 4326,
+               remove = FALSE),
+  sf::st_crs(example_lake)
+)
+lake_data <- list(all_lakes = example_lake,
+                  sites = sites_sf,
+                  utm_epsg = sf::st_crs(example_lake)$epsg)
+results <- fetch_calculate(sites_df, lake_data, add_context = FALSE)
 plot_fetch_map(results)
-}
 
 }

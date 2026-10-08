@@ -76,7 +76,8 @@ create_site <- function(x, y, name = "Test Site", epsg = 32618) {
 #' Get lake boundary as linestring
 #' @param lake_sf Lake polygon sf object
 #' @return sf linestring of lake boundary
-get_lake_boundary <- function(lake_sf) {
+#' @keywords internal
+lake_boundary_as_lines <- function(lake_sf) {
   tryCatch({
     sf::st_cast(lake_sf, "MULTILINESTRING")
   }, error = function(e) {
@@ -94,7 +95,7 @@ calc_test_fetch <- function(site_sf, lake_sf, buffer_m = 0) {
 
   lakefetch_options(buffer_distance_m = buffer_m)
 
-  lake_boundary <- get_lake_boundary(lake_sf)
+  lake_boundary <- lake_boundary_as_lines(lake_sf)
   angle_res <- lakefetch_options()$angle_resolution_deg
   angles <- seq(0, 360 - angle_res, by = angle_res)
 

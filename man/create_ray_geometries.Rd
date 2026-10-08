@@ -17,7 +17,7 @@ Create line geometries representing fetch rays from each site.
 Useful for detailed visualization of the ray-casting results.
 }
 \examples{
-\donttest{
+\dontshow{if (interactive()) withAutoprint(\{ # examplesIf}
 csv_path <- system.file("extdata", "sample_sites.csv", package = "lakefetch")
 sites <- load_sites(csv_path)
 lake <- get_lake_boundary(sites)
@@ -28,6 +28,5 @@ rays <- create_ray_geometries(results)
 site_name <- results$results$Site[1]
 site_rays <- rays[rays$Site == site_name, ]
 ggplot2::ggplot() + ggplot2::geom_sf(data = site_rays, ggplot2::aes(color = Distance))
-}
-
+\dontshow{\}) # examplesIf}
 }

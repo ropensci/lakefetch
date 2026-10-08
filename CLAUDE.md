@@ -6,7 +6,7 @@ Last updated: 2026-02-01
 
 **lakefetch** calculates fetch (open water distance) and wave exposure metrics for freshwater lake sampling sites. It downloads lake boundaries from OpenStreetMap, calculates directional fetch using ray-casting, and provides wave exposure classifications.
 
-**GitHub:** https://github.com/jeremylfarrell/lakefetch
+**GitHub:** https://github.com/ropensci/lakefetch
 
 ## Current Status: AWAITING COLLEAGUE FEEDBACK
 
@@ -67,10 +67,10 @@ All checks pass locally (0 errors, 0 warnings, 1 note). Waiting on feedback from
 ```r
 # Install from GitHub
 install.packages("remotes")
-remotes::install_github("jeremylfarrell/lakefetch")
+remotes::install_github("ropensci/lakefetch")
 
 # Or with all optional dependencies
-remotes::install_github("jeremylfarrell/lakefetch", dependencies = TRUE)
+remotes::install_github("ropensci/lakefetch", dependencies = TRUE)
 ```
 
 ## Quick Start
@@ -229,4 +229,4 @@ lakefetch/
 
 Jeremy Lynch Farrell
 farrej2@rpi.edu
-https://github.com/jeremylfarrell/lakefetch
+https://github.com/ropensci/lakefetch

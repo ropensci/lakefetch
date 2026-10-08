@@ -39,12 +39,11 @@ data(wisconsin_lakes)
 # View the data
 head(wisconsin_lakes)
 
+\dontshow{if (interactive()) withAutoprint(\{ # examplesIf}
 # Use with lakefetch (requires internet connection)
-\donttest{
 sites <- load_sites(wisconsin_lakes)
 lake_data <- get_lake_boundary(sites)
 results <- fetch_calculate(sites, lake_data)
-}
-
+\dontshow{\}) # examplesIf}
 }
 \keyword{datasets}

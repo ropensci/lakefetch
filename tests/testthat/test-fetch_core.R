@@ -271,3 +271,56 @@ test_that("edge site has lower mean fetch_proportion than center site", {
 
   expect_gt(center_prop, edge_prop)
 })
+
+test_that("get_highres_fetch returns all-NA for a point outside the polygon", {
+  lake <- create_circular_lake(radius = 1000)
+  # 1050m from center: just outside a 1000m-radius lake, but close enough
+  # that a small nudge (10m) still leaves it outside
+  site <- create_site(501050, 4800000, "JustOutside")
+
+  result <- calc_test_fetch(site, lake, buffer_m = 10)
+
+  expect_true(all(is.na(result$fetch)))
+})
+
+test_that("calc_effective_fetch returns NA (not NaN/-Inf) for an all-NA row", {
+  angles <- seq(0, 355, by = 5)
+  na_row <- matrix(rep(NA_real_, length(angles)), nrow = 1)
+
+  for (method in c("max", "top3", "cosine")) {
+    eff <- lakefetch:::calc_effective_fetch(na_row, angles, method)
+    expect_true(is.na(eff))
+    expect_false(is.nan(eff))
+  }
+})
+
+test_that("fetch_calculate gives NA (not NaN/-Inf) and warns when a matched site sits outside its lake polygon", {
+  lake_sf <- create_circular_lake(radius = 1000)
+  # Just outside the polygon (within gps_tolerance_m so it still gets
+  # matched to the lake, but beyond buffer_distance_m so nudge_inward
+  # can't pull it back inside)
+  site <- create_site(501050, 4800000, "JustOutside")
+
+  lake_obj <- list(
+    all_lakes = lake_sf,
+    sites = site[, c("Site", "site_name")],
+    utm_epsg = sf::st_crs(lake_sf)$epsg
+  )
+
+  old_buffer <- lakefetch_options()$buffer_distance_m
+  lakefetch_options(buffer_distance_m = 10)
+
+  expect_warning(
+    result <- fetch_calculate(site, lake_obj, add_context = FALSE),
+    "fell outside its polygon"
+  )
+
+  lakefetch_options(buffer_distance_m = old_buffer)
+
+  row <- sf::st_drop_geometry(result$results)
+  expect_true(is.na(row$fetch_mean))
+  expect_true(is.na(row$fetch_max))
+  expect_true(is.na(row$fetch_effective))
+  expect_false(is.nan(row$fetch_mean))
+  expect_false(is.infinite(row$fetch_max))
+})

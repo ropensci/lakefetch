@@ -21,7 +21,7 @@ Looks up or estimates depth for each lake in the fetch results and
 adds depth columns.
 }
 \examples{
-\donttest{
+\dontshow{if (interactive()) withAutoprint(\{ # examplesIf}
 data(adirondack_sites)
 sites <- load_sites(adirondack_sites)
 lake <- get_lake_boundary(sites)
@@ -34,6 +34,5 @@ results$results <- add_lake_depth(results$results, results$lakes)
 lake_id <- results$lakes$osm_id[1]
 depths <- setNames(15.5, lake_id)
 results$results <- add_lake_depth(results$results, results$lakes, user_depths = depths)
-}
-
+\dontshow{\}) # examplesIf}
 }

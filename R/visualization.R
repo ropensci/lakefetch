@@ -12,13 +12,22 @@
 #' @return A ggplot2 object
 #'
 #' @examples
-#' \donttest{
-#' csv_path <- system.file("extdata", "sample_sites.csv", package = "lakefetch")
-#' sites <- load_sites(csv_path)
-#' lake <- get_lake_boundary(sites)
-#' results <- fetch_calculate(sites, lake)
+#' # Use the bundled example lake (Blue Mountain Lake, NY) and the
+#' # matching sample sites to compute and plot fetch offline.
+#' data(example_lake)
+#' sites_df <- load_sites(system.file("extdata", "sample_sites.csv",
+#'                                     package = "lakefetch"))
+#' sites_sf <- sf::st_transform(
+#'   sf::st_as_sf(sites_df,
+#'                coords = c("longitude", "latitude"), crs = 4326,
+#'                remove = FALSE),
+#'   sf::st_crs(example_lake)
+#' )
+#' lake_data <- list(all_lakes = example_lake,
+#'                   sites = sites_sf,
+#'                   utm_epsg = sf::st_crs(example_lake)$epsg)
+#' results <- fetch_calculate(sites_df, lake_data, add_context = FALSE)
 #' plot_fetch_map(results)
-#' }
 #'
 #' @export
 plot_fetch_map <- function(fetch_data, title = "Fetch Analysis - Site Locations") {
@@ -30,10 +39,13 @@ plot_fetch_map <- function(fetch_data, title = "Fetch Analysis - Site Locations"
   # Color palette for exposure categories
   exposure_colors <- c("Exposed" = "#D73027", "Moderate" = "#FEE08B", "Sheltered" = "#1A9850")
 
-  # Get bounding box
-  bbox <- sf::st_bbox(results_wgs)
-  xlim <- c(bbox["xmin"] - 0.02, bbox["xmax"] + 0.02)
-  ylim <- c(bbox["ymin"] - 0.02, bbox["ymax"] + 0.02)
+  # Get bounding box from both sites and lake polygons so full lakes are shown
+  bbox_sites <- sf::st_bbox(results_wgs)
+  bbox_lakes <- sf::st_bbox(lakes_wgs)
+  xlim <- c(min(bbox_sites["xmin"], bbox_lakes["xmin"]) - 0.02,
+            max(bbox_sites["xmax"], bbox_lakes["xmax"]) + 0.02)
+  ylim <- c(min(bbox_sites["ymin"], bbox_lakes["ymin"]) - 0.02,
+            max(bbox_sites["ymax"], bbox_lakes["ymax"]) + 0.02)
 
   # Create subtitle
   n_sites <- nrow(results_wgs)
@@ -68,14 +80,12 @@ plot_fetch_map <- function(fetch_data, title = "Fetch Analysis - Site Locations"
 #'
 #' @return A ggplot2 object
 #'
-#' @examples
-#' \donttest{
+#' @examplesIf interactive()
 #' csv_path <- system.file("extdata", "sample_sites.csv", package = "lakefetch")
 #' sites <- load_sites(csv_path)
 #' lake <- get_lake_boundary(sites)
 #' results <- fetch_calculate(sites, lake)
 #' plot_fetch_bars(results)
-#' }
 #'
 #' @export
 plot_fetch_bars <- function(fetch_data, title = "Effective Fetch by Site") {
@@ -115,35 +125,76 @@ plot_fetch_bars <- function(fetch_data, title = "Effective Fetch by Site") {
 #' Create a rose diagram showing directional fetch for a single site.
 #'
 #' @param fetch_data Results from \code{\link{fetch_calculate}}
-#' @param site Site name to plot
+#' @param site Site name (character) or row index (integer) to plot
 #' @param title Optional plot title (defaults to site name)
 #'
 #' @return Invisible NULL (creates base R plot)
 #'
 #' @examples
-#' \donttest{
-#' csv_path <- system.file("extdata", "sample_sites.csv", package = "lakefetch")
-#' sites <- load_sites(csv_path)
-#' lake <- get_lake_boundary(sites)
-#' results <- fetch_calculate(sites, lake)
-#' plot_fetch_rose(results, results$results$Site[1])
-#' }
+#' # Compute fetch offline against the bundled Blue Mountain Lake polygon.
+#' data(example_lake)
+#' sites_df <- load_sites(system.file("extdata", "sample_sites.csv",
+#'                                     package = "lakefetch"))
+#' sites_sf <- sf::st_transform(
+#'   sf::st_as_sf(sites_df,
+#'                coords = c("longitude", "latitude"), crs = 4326,
+#'                remove = FALSE),
+#'   sf::st_crs(example_lake)
+#' )
+#' lake_data <- list(all_lakes = example_lake,
+#'                   sites = sites_sf,
+#'                   utm_epsg = sf::st_crs(example_lake)$epsg)
+#' results <- fetch_calculate(sites_df, lake_data, add_context = FALSE)
+#' plot_fetch_rose(results, 1)
 #'
 #' @export
 plot_fetch_rose <- function(fetch_data, site, title = NULL) {
 
+  # After a ggplot2 render (plot_fetch_map, plot_fetch_bars) or after
+  # fetch_app() closes, the graphics device is left in a state (grid
+  # viewport active, par$new leftover, etc.) that base R plot.new() cannot
+  # fully reset. The reviewer confirmed that a manual dev.off() between
+  # the two plots fixes the overplotting, so we do it here automatically.
+  # The next plotting call reopens a fresh device.
+  #
+  # Only close *interactive* / screen devices - never a file-writing device
+  # that the user opened intentionally (png, pdf, svg, etc.), or we would
+  # silently truncate their output.
+  if (grDevices::dev.cur() > 1L) {
+    dev_name <- names(grDevices::dev.cur())
+    interactive_devs <- c("RStudioGD", "windows", "X11", "X11cairo",
+                          "quartz", "null device")
+    if (isTRUE(dev_name %in% interactive_devs)) {
+      grDevices::dev.off()
+    }
+  }
+
   oldpar <- graphics::par(no.readonly = TRUE)
   on.exit(graphics::par(oldpar))
+  graphics::par(new = FALSE)
 
   results <- fetch_data$results
 
-  # Find the site
-  site_idx <- which(results$Site == site)
-  if (length(site_idx) == 0) {
-    stop("Site '", site, "' not found in results")
+  # Accept integer index or site name string
+  if (is.numeric(site) || is.integer(site)) {
+    idx <- as.integer(site)
+    if (idx < 1 || idx > nrow(results)) {
+      stop("Site index ", idx, " is out of range (1 to ", nrow(results), ")")
+    }
+    site_idx <- idx
+    if (is.null(title)) title <- results$Site[idx]
+    site <- results$Site[idx]
+  } else {
+    site_idx <- which(results$Site == site)
+    if (length(site_idx) == 0) {
+      available <- paste(results$Site, collapse = ", ")
+      stop("Site '", site, "' not found in results.\n",
+           "Available sites: ", available)
+    }
+    site_idx <- site_idx[1]
   }
 
-  site_row <- results[site_idx[1], ]
+  site_row <- results[site_idx, ]
 
   if (is.null(title)) {
     title <- site
@@ -160,8 +211,9 @@ plot_fetch_rose <- function(fetch_data, site, title = NULL) {
   angles <- as.numeric(gsub("fetch_", "", fetch_cols))
   fetch_vals <- as.numeric(sf::st_drop_geometry(site_row)[, fetch_cols])
 
-  # Set up plot
-  graphics::par(mar = c(1, 1, 2, 1))
+  # Set up plot. Bottom margin is 2.5 lines to leave room for the
+  # "Max: X km" annotation below the compass, which was clipped in v0.1.10.
+  graphics::par(mar = c(2.5, 1, 2, 1))
 
   # Convert to radians (0 = North, clockwise)
   angles_rad <- (90 - angles) * pi / 180
@@ -190,8 +242,11 @@ plot_fetch_rose <- function(fetch_data, site, title = NULL) {
   # Draw fetch polygon
   x_pts <- fetch_norm * cos(angles_rad)
   y_pts <- fetch_norm * sin(angles_rad)
+  # Uses purple rather than blue to avoid visual confusion with the lake
+  # polygon underlays in the Shiny map.
   graphics::polygon(c(x_pts, x_pts[1]), c(y_pts, y_pts[1]),
-          col = grDevices::rgb(0.2, 0.5, 0.8, 0.4), border = "steelblue", lwd = 2)
+          col = grDevices::rgb(0.48, 0.24, 0.62, 0.4),
+          border = "#7B3E9E", lwd = 2)
 
   # Add cardinal directions
   graphics::text(0, 1.15, "N", cex = 0.8, font = 2)
@@ -199,9 +254,10 @@ plot_fetch_rose <- function(fetch_data, site, title = NULL) {
   graphics::text(0, -1.15, "S", cex = 0.8, font = 2)
   graphics::text(-1.15, 0, "W", cex = 0.8, font = 2)
 
-  # Add scale label
-  graphics::text(0, -1.4, paste("Max:", round(max_fetch/1000, 1), "km"),
-       cex = 0.7, col = "gray40")
+  # Add scale label in the bottom margin (using mtext) so it cannot be
+  # clipped by the plot region.
+  graphics::mtext(paste("Max:", round(max_fetch / 1000, 1), "km"),
+                  side = 1, line = 0.5, cex = 0.7, col = "gray40")
 
   invisible(NULL)
 }
@@ -215,8 +271,7 @@ plot_fetch_rose <- function(fetch_data, site, title = NULL) {
 #'
 #' @return An sf object with ray line geometries
 #'
-#' @examples
-#' \donttest{
+#' @examplesIf interactive()
 #' csv_path <- system.file("extdata", "sample_sites.csv", package = "lakefetch")
 #' sites <- load_sites(csv_path)
 #' lake <- get_lake_boundary(sites)
@@ -227,7 +282,6 @@ plot_fetch_rose <- function(fetch_data, site, title = NULL) {
 #' site_name <- results$results$Site[1]
 #' site_rays <- rays[rays$Site == site_name, ]
 #' ggplot2::ggplot() + ggplot2::geom_sf(data = site_rays, ggplot2::aes(color = Distance))
-#' }
 #'
 #' @export
 create_ray_geometries <- function(fetch_data) {
@@ -270,9 +324,9 @@ create_ray_geometries <- function(fetch_data) {
 
   # Convert to sf
   rays_df <- data.frame(
-    Site = sapply(all_rays, function(x) x$Site),
-    Angle = sapply(all_rays, function(x) x$Angle),
-    Distance = sapply(all_rays, function(x) x$Distance),
+    Site = vapply(all_rays, function(x) x$Site, character(1)),
+    Angle = vapply(all_rays, function(x) x$Angle, numeric(1)),
+    Distance = vapply(all_rays, function(x) x$Distance, numeric(1)),
     stringsAsFactors = FALSE
   )
 
@@ -345,8 +399,11 @@ make_rose_plot_base64 <- function(site_row, site_name) {
   # Draw fetch polygon
   x_pts <- fetch_norm * cos(angles_rad)
   y_pts <- fetch_norm * sin(angles_rad)
+  # Uses purple rather than blue to avoid visual confusion with the lake
+  # polygon underlays in the Shiny map.
   graphics::polygon(c(x_pts, x_pts[1]), c(y_pts, y_pts[1]),
-          col = grDevices::rgb(0.2, 0.5, 0.8, 0.4), border = "steelblue", lwd = 2)
+          col = grDevices::rgb(0.48, 0.24, 0.62, 0.4),
+          border = "#7B3E9E", lwd = 2)
 
   # Add cardinal directions
   graphics::text(0, 1.15, "N", cex = 0.8, font = 2)

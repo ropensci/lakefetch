@@ -10,9 +10,12 @@
 #'
 #' @param sites Data frame or sf object with site locations
 #' @param lake Lake boundary data from \code{\link{get_lake_boundary}}
-#' @param depth_m Water depth in meters for orbital velocity calculation.
-#'   Can be a single value (applied to all sites), a vector (one per site),
-#'   or NULL to use depth from sites data or default from options.
+#' @param depth_m Mean water depth in meters for orbital velocity calculation
+#'   (used in the SMB wave hindcast equations). Can be a single value (applied
+#'   to all sites), a vector (one per site), or NULL to use depth from sites
+#'   data or the default from \code{\link{lakefetch_options}}. Mean depth is
+#'   preferred over maximum depth as it better represents conditions across
+#'   the water column for wave attenuation estimates.
 #' @param fetch_method Method for calculating effective fetch. Options:
 #'   \describe{
 #'     \item{"top3"}{Mean of the 3 highest directional fetch values (default)}
@@ -54,8 +57,7 @@
 #' Shore Protection Manual (1984). U.S. Army Corps of Engineers, Coastal
 #' Engineering Research Center. 4th Edition.
 #'
-#' @examples
-#' \donttest{
+#' @examplesIf interactive()
 #' csv_path <- system.file("extdata", "sample_sites.csv", package = "lakefetch")
 #' sites <- load_sites(csv_path)
 #' lake <- get_lake_boundary(sites)
@@ -74,7 +76,6 @@
 #' # Find the location with maximum fetch in each lake
 #' results <- fetch_calculate(sites, lake, find_max_fetch = TRUE)
 #' results$max_fetch  # sf with max fetch location per lake
-#' }
 #'
 #' @export
 fetch_calculate <- function(sites, lake, depth_m = NULL, fetch_method = NULL,
@@ -168,6 +169,11 @@ fetch_calculate <- function(sites, lake, depth_m = NULL, fetch_method = NULL,
     }
   }
 
+  # Include utm_epsg in output so downstream tools (e.g. fetch_app) can use it
+  # without having to re-derive it from the CRS object (which can return NA
+  # for some PROJ configurations)
+  fetch_data$utm_epsg <- utm_epsg
+
   return(fetch_data)
 }
 
@@ -191,15 +197,45 @@ calculate_fetch_multi_lake <- function(sites_with_lakes, all_lakes, utm_epsg,
   lakes_with_sites <- unique(sites_with_lakes$lake_osm_id)
   lakes_with_sites <- lakes_with_sites[!is.na(lakes_with_sites)]
 
-  # Warn about unmatched sites
+  # Warn about unmatched sites - they will receive NA fetch values
   unmatched <- sites_with_lakes[is.na(sites_with_lakes$lake_osm_id), ]
   if (nrow(unmatched) > 0) {
-    warning("Skipping ", nrow(unmatched), " sites not matched to any lake: ",
-            paste(unmatched$Site, collapse = ", "))
+    warning(nrow(unmatched), " site(s) not matched to any lake boundary ",
+            "(fetch values will be NA): ",
+            paste(unmatched$Site, collapse = ", "),
+            ". These lakes may be too small for OpenStreetMap. ",
+            "You can supply your own boundary file using: ",
+            "get_lake_boundary(sites, file = 'your_boundary.gpkg')")
   }
 
   if (length(lakes_with_sites) == 0) {
-    stop("No sites matched to any lake. Cannot calculate fetch.")
+    warning("No sites matched to any lake. All fetch values will be NA.")
+    # Return results with all NAs
+    angle_res <- get_opt("angle_resolution_deg")
+    angles <- seq(0, 360 - angle_res, by = angle_res)
+    na_cols <- stats::setNames(
+      as.list(rep(NA_real_, length(angles))),
+      paste0("fetch_", angles)
+    )
+    na_results <- sites_with_lakes
+    for (col_name in names(na_cols)) {
+      na_results[[col_name]] <- NA_real_
+    }
+    na_results$fetch_mean <- NA_real_
+    na_results$fetch_max <- NA_real_
+    na_results$fetch_effective <- NA_real_
+    na_results$exposure_category <- NA_character_
+    na_results$orbital_velocity <- NA_real_
+
+    return(list(
+      results = na_results,
+      lakes = sf::st_sf(
+        osm_id = character(0), name = character(0),
+        area_km2 = numeric(0),
+        geometry = sf::st_sfc(crs = sf::st_crs(sites_with_lakes))
+      ),
+      angles = angles
+    ))
   }
 
   message("Processing ", length(lakes_with_sites), " lake(s)...")
@@ -257,7 +293,7 @@ calculate_fetch_multi_lake <- function(sites_with_lakes, all_lakes, utm_epsg,
                                    "fetch_method", "process_one_lake"),
                              envir = environment())
 
-    parallel::clusterEvalQ(cl, library(sf))
+    parallel::clusterEvalQ(cl, requireNamespace("sf", quietly = TRUE))
 
     results_list <- parallel::parLapply(cl, lakes_with_sites, function(lid) {
       process_one_lake(lid, all_lakes, sites_with_lakes, utm_epsg, fetch_method)
@@ -288,6 +324,34 @@ calculate_fetch_multi_lake <- function(sites_with_lakes, all_lakes, utm_epsg,
   all_results <- do.call(rbind, lapply(results_list, function(x) x$results))
   all_lake_polys <- do.call(rbind, lapply(results_list, function(x) x$lake))
   angles <- results_list[[1]]$angles
+
+  # Add unmatched sites back with NA fetch values
+  if (nrow(unmatched) > 0) {
+    na_rows <- unmatched
+    for (col_name in paste0("fetch_", angles)) {
+      na_rows[[col_name]] <- NA_real_
+    }
+    na_rows$fetch_mean <- NA_real_
+    na_rows$fetch_max <- NA_real_
+    na_rows$fetch_effective <- NA_real_
+    na_rows$exposure_category <- NA_character_
+    na_rows$orbital_velocity <- NA_real_
+
+    # Align columns before binding
+    missing_in_na <- setdiff(names(all_results), names(na_rows))
+    for (col_name in missing_in_na) {
+      na_rows[[col_name]] <- NA
+    }
+    missing_in_results <- setdiff(names(na_rows), names(all_results))
+    for (col_name in missing_in_results) {
+      all_results[[col_name]] <- NA
+    }
+
+    all_results <- rbind(all_results[, names(all_results)],
+                          na_rows[, names(all_results)])
+    message("  Note: ", nrow(unmatched),
+            " unmatched site(s) included with NA fetch values")
+  }
 
   return(list(
     results = all_results,
@@ -429,8 +493,30 @@ calculate_fetch_single_lake <- function(sites, lake_polygon, utm_epsg,
   fetch_cols <- grep("^fetch_[0-9]", names(results), value = TRUE)
   fetch_values <- as.matrix(results[, fetch_cols])
 
+  # Sites whose (possibly nudged) point still falls outside the lake polygon
+  # get NA for every ray (see get_highres_fetch()). This is distinct from the
+  # "unmatched to any lake" case: these sites matched a lake within
+  # gps_tolerance_m, but sit outside the polygon by more than
+  # buffer_distance_m, so nudge_inward() left them in place. rowMeans()/max()
+  # with na.rm = TRUE silently turn an all-NA row into NaN/-Inf, so those rows
+  # are handled explicitly below to keep the output NA and to warn the user,
+  # since this case is otherwise silent.
+  all_na_row <- apply(fetch_values, 1, function(x) all(is.na(x)))
+  if (any(all_na_row)) {
+    warning(sum(all_na_row), " site(s) matched to a lake but fell outside its ",
+            "polygon by more than buffer_distance_m (", get_opt("buffer_distance_m"),
+            " m), so fetch could not be calculated (values will be NA): ",
+            paste(results$Site[all_na_row], collapse = ", "),
+            ". This can happen when GPS/OSM coordinates don't perfectly align. ",
+            "Consider increasing buffer_distance_m via lakefetch_options(), or ",
+            "verify the site coordinates against the lake polygon.")
+  }
+
   results$fetch_mean <- rowMeans(fetch_values, na.rm = TRUE)
-  results$fetch_max <- apply(fetch_values, 1, max, na.rm = TRUE)
+  results$fetch_mean[all_na_row] <- NA_real_
+  results$fetch_max <- apply(fetch_values, 1, function(x) {
+    if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE)
+  })
 
   # Calculate effective fetch using specified method
   results$fetch_effective <- calc_effective_fetch(fetch_values, angles, fetch_method)
@@ -485,6 +571,12 @@ get_highres_fetch <- function(pt, boundary, poly, angles) {
 
   max_d <- get_opt("max_fetch_m")
   validation_buffer <- get_opt("validation_buffer_m")
+
+  # If the site is not inside the lake polygon, fetch cannot be calculated
+  is_inside <- length(sf::st_intersects(pt, poly)[[1]]) > 0
+  if (!is_inside) {
+    return(rep(NA_real_, length(angles)))
+  }
 
   coords <- sf::st_coordinates(pt)
   x0 <- coords[1]
@@ -630,11 +722,14 @@ calc_effective_fetch <- function(fetch_matrix, angles, method = "top3") {
 
   if (method == "max") {
     # Simple maximum
-    return(apply(fetch_matrix, 1, max, na.rm = TRUE))
+    return(apply(fetch_matrix, 1, function(x) {
+      if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE)
+    }))
 
   } else if (method == "top3") {
     # Mean of 3 highest values
     return(apply(fetch_matrix, 1, function(x) {
+      if (all(is.na(x))) return(NA_real_)
       mean(sort(x, decreasing = TRUE)[1:3], na.rm = TRUE)
     }))
 
@@ -649,6 +744,7 @@ calc_effective_fetch <- function(fetch_matrix, angles, method = "top3") {
     radial_spacing <- 6  # degrees
 
     return(apply(fetch_matrix, 1, function(fetch_row) {
+      if (all(is.na(fetch_row))) return(NA_real_)
       # Find direction of maximum fetch
       max_idx <- which.max(fetch_row)
       max_angle <- angles[max_idx]
@@ -658,13 +754,13 @@ calc_effective_fetch <- function(fetch_matrix, angles, method = "top3") {
       radial_angles <- (max_angle + offsets) %% 360
 
       # Get fetch values at these angles (interpolate if needed)
-      radial_fetches <- sapply(radial_angles, function(a) {
+      radial_fetches <- vapply(radial_angles, function(a) {
         # Find closest angle in our measurements
         angle_diff <- abs(angles - a)
         angle_diff <- pmin(angle_diff, 360 - angle_diff)  # Handle wrap-around
         closest_idx <- which.min(angle_diff)
         fetch_row[closest_idx]
-      })
+      }, numeric(1))
 
       # Cosine weights (in radians)
       cos_weights <- cos(offsets * pi / 180)

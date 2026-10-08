@@ -11,7 +11,11 @@ assign_sites_to_lakes(sites_sf, water_polygons, tolerance_m = NULL)
 
 \item{water_polygons}{sf object with lake polygons}
 
-\item{tolerance_m}{Buffer distance for matching sites near lake edges}
+\item{tolerance_m}{Buffer distance in meters for matching sites that fall
+just outside lake polygons (e.g., due to GPS noise or coarse OSM
+boundaries). Default is the value from \code{lakefetch_options()} (50 m).
+For datasets with appreciable GPS error or for very coarsely mapped
+shorelines, try 100-500 m.}
 }
 \value{
 sf object with sites and added columns for lake_osm_id, lake_name, lake_area_km2
@@ -20,20 +24,22 @@ sf object with sites and added columns for lake_osm_id, lake_name, lake_area_km2
 Perform spatial join to assign each site to its containing lake polygon.
 }
 \examples{
-\donttest{
+\dontshow{if (interactive()) withAutoprint(\{ # examplesIf}
 csv_path <- system.file("extdata", "sample_sites.csv", package = "lakefetch")
 sites <- load_sites(csv_path)
 lake_data <- get_lake_boundary(sites)
 
-# Assign sites to their containing lakes
+# Assign sites to their containing lakes. Default tolerance (50 m) is
+# appropriate for sites with accurate coordinates that fall inside the
+# lake polygon. If your sites are near the shoreline or your GPS error is
+# larger, increase tolerance_m (e.g., 200-500 m).
 sites_assigned <- assign_sites_to_lakes(
   lake_data$sites,
   lake_data$all_lakes,
-  tolerance_m = 50
+  tolerance_m = 200
 )
 
 # Check assignments
 table(sites_assigned$lake_name)
-}
-
+\dontshow{\}) # examplesIf}
 }

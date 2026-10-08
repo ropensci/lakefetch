@@ -74,14 +74,20 @@ fetch_app <- function(fetch_data, title = NULL) {
 
   # Store lake data for click analysis
   lakes_utm <- fetch_data$lakes
-  utm_epsg <- sf::st_crs(lakes_utm)$epsg
+  # Prefer the stored utm_epsg (added by fetch_calculate) over deriving from
+  # the CRS object, which can return NA for some PROJ configurations
+  utm_epsg <- fetch_data$utm_epsg
+  if (is.null(utm_epsg) || is.na(utm_epsg)) {
+    utm_epsg <- sf::st_crs(lakes_utm)$epsg
+  }
   n_sites <- nrow(fetch_data$results)
   # Cluster markers when many sites or when sites span a wide geographic area
   # (e.g., sites on lakes across multiple states/countries)
   results_bbox <- sf::st_bbox(sf::st_transform(fetch_data$results, 4326))
   geo_span <- max(results_bbox["xmax"] - results_bbox["xmin"],
                   results_bbox["ymax"] - results_bbox["ymin"])
-  use_clustering <- n_sites > 30 || geo_span > 5  # >5 degrees ~ multiple regions
+  # Use isTRUE() to guard against NA (can occur if bbox has NA values)
+  use_clustering <- isTRUE(n_sites > 30) || isTRUE(geo_span > 5)
   # For small datasets, pre-render rose plots in popups for best UX
   # For large datasets (>50 sites), generate on demand to avoid long startup
   prerender_roses <- n_sites <= 50
@@ -109,7 +115,13 @@ fetch_app <- function(fetch_data, title = NULL) {
         shiny::h5("Selected Site:"),
         shiny::textOutput("selected_site"),
         shiny::uiOutput("site_details"),
-        shiny::uiOutput("click_results"),
+        shiny::conditionalPanel(
+          condition = "output.has_click_result == true",
+          shiny::hr(),
+          shiny::h5("Custom Point Analysis:",
+                    style = "color: #B36A00;"),
+          shiny::uiOutput("click_results")
+        ),
         shiny::hr(),
         shiny::h5("Color Legend:"),
         shiny::uiOutput("legend_text"),
@@ -180,14 +192,14 @@ fetch_app <- function(fetch_data, title = NULL) {
 
     # Color palettes
     exposure_pal <- leaflet::colorFactor(
-      palette = c("firebrick", "goldenrod", "forestgreen"),
+      palette = c("#D55E00", "#E69F00", "#0072B2"),
       levels = c("Exposed", "Moderate", "Sheltered")
     )
 
     # Reactive ray palette based on current thresholds
     ray_pal_reactive <- shiny::reactive({
       leaflet::colorBin(
-        palette = c("forestgreen", "gold", "firebrick"),
+        palette = c("#0072B2", "#E69F00", "#D55E00"),
         domain = c(0, max(display_rv$exposed_m * 2, 10000)),
         bins = c(0, display_rv$sheltered_m, display_rv$exposed_m,
                  max(display_rv$exposed_m * 10, 50000))
@@ -197,13 +209,13 @@ fetch_app <- function(fetch_data, title = NULL) {
     # Initial legend text
     output$legend_text <- shiny::renderUI({
       shiny::tagList(
-        shiny::p(style = "color: firebrick;",
-          sprintf("Red: > %.1f km (Exposed)", display_rv$exposed_m / 1000)),
-        shiny::p(style = "color: gold;",
-          sprintf("Gold: %.1f-%.1f km (Moderate)",
+        shiny::p(style = "color: #D55E00; font-weight: bold;",
+          sprintf("Exposed: > %.1f km", display_rv$exposed_m / 1000)),
+        shiny::p(style = "color: #B36A00; font-weight: bold;",
+          sprintf("Moderate: %.1f-%.1f km",
                   display_rv$sheltered_m / 1000, display_rv$exposed_m / 1000)),
-        shiny::p(style = "color: forestgreen;",
-          sprintf("Green: < %.1f km (Sheltered)", display_rv$sheltered_m / 1000))
+        shiny::p(style = "color: #0072B2; font-weight: bold;",
+          sprintf("Sheltered: < %.1f km", display_rv$sheltered_m / 1000))
       )
     })
 
@@ -320,7 +332,22 @@ fetch_app <- function(fetch_data, title = NULL) {
       }
 
       m <- leaflet::leaflet(results_wgs) |>
-        leaflet::addProviderTiles("Esri.WorldImagery") |>
+        leaflet::addProviderTiles("Esri.WorldImagery", group = "Imagery") |>
+        leaflet::addTiles(group = "OSM") |>
+        leaflet::addTiles(
+          urlTemplate = paste0("https://basemap.nationalmap.gov/arcgis/rest/",
+                                "services/USGSHydroCached/MapServer/tile/",
+                                "{z}/{y}/{x}"),
+          attribution = "USGS The National Map: National Hydrography Dataset",
+          options = leaflet::tileOptions(opacity = 0.8),
+          group = "USGS NHD"
+        ) |>
+        leaflet::addLayersControl(
+          baseGroups = c("Imagery", "OSM"),
+          overlayGroups = "USGS NHD",
+          options = leaflet::layersControlOptions(collapsed = FALSE)
+        ) |>
+        leaflet::hideGroup("USGS NHD") |>
         leaflet::addPolygons(data = lakes_wgs,
                     fill = FALSE, color = "white",
                     weight = 1, opacity = 0.3)
@@ -435,9 +462,9 @@ fetch_app <- function(fetch_data, title = NULL) {
           shiny::p(shiny::strong("Exposure: "),
             shiny::span(site_row$exposure_category, style = sprintf("color: %s; font-weight: bold;",
               switch(as.character(site_row$exposure_category),
-                "Exposed" = "firebrick",
-                "Moderate" = "goldenrod",
-                "Sheltered" = "forestgreen"
+                "Exposed" = "#D55E00",
+                "Moderate" = "#E69F00",
+                "Sheltered" = "#0072B2"
               )
             ))
           ),
@@ -449,6 +476,15 @@ fetch_app <- function(fetch_data, title = NULL) {
 
     # Store click analysis results
     click_result <- shiny::reactiveVal(NULL)
+
+    # Drives the conditionalPanel that shows the "Custom Point Analysis"
+    # sidebar section. Without this, clicking a pre-loaded marker can visually
+    # obscure the custom-point result (rose plots are tall) and the user can
+    # mistakenly think their custom analysis was discarded.
+    output$has_click_result <- shiny::reactive({
+      !is.null(click_result())
+    })
+    shiny::outputOptions(output, "has_click_result", suspendWhenHidden = FALSE)
 
     # Click handler for map (new point analysis)
     shiny::observeEvent(input$map_click, {
@@ -569,10 +605,47 @@ fetch_app <- function(fetch_data, title = NULL) {
 
         # Get exposure color
         exp_color <- switch(exposure,
-          "Exposed" = "firebrick",
-          "Moderate" = "goldenrod",
-          "Sheltered" = "forestgreen"
+          "Exposed" = "#D55E00",
+          "Moderate" = "#E69F00",
+          "Sheltered" = "#0072B2"
         )
+
+        # Generate rose diagram for custom point
+        # Build a synthetic site_row with fetch_* columns so make_rose_plot_base64 can use it
+        fetch_row <- as.data.frame(t(fetch_dists))
+        colnames(fetch_row) <- paste0("fetch_", angles)
+        fetch_row_sf <- sf::st_sf(fetch_row,
+                                   geometry = sf::st_sfc(nudged_pt, crs = utm_epsg))
+        rose_b64 <- tryCatch(
+          make_rose_plot_base64(fetch_row_sf, lake_name),
+          error = function(e) ""
+        )
+
+        # Explicitly set output$click_results here (same pattern as marker click handler)
+        # so the rose updates correctly even after a prior marker click overrode the binding
+        output$click_results <- shiny::renderUI({
+          shiny::tagList(
+            shiny::hr(),
+            shiny::h5("Custom Point Results:"),
+            shiny::p(shiny::strong("Lake: "), lake_name),
+            shiny::p(shiny::strong("Mean Fetch: "), sprintf("%.1f m", fetch_mean)),
+            shiny::p(shiny::strong("Max Fetch: "), sprintf("%.1f m", fetch_max)),
+            shiny::p(shiny::strong("Effective Fetch: "),
+                     sprintf("%.1f km", fetch_effective / 1000)),
+            shiny::p(shiny::strong("Orbital Velocity: "),
+                     sprintf("%.3f m/s", orbital)),
+            shiny::p(shiny::strong("Exposure: "),
+              shiny::span(exposure, style = sprintf("color: %s; font-weight: bold;",
+                switch(exposure,
+                  "Exposed" = "#D55E00",
+                  "Moderate" = "#E69F00",
+                  "Sheltered" = "#0072B2"
+                )
+              ))
+            ),
+            if (nzchar(rose_b64)) shiny::tags$img(src = rose_b64, width = "100%")
+          )
+        })
 
         # Update map with new point and rays
         cur_ray_pal <- ray_pal_reactive()
@@ -610,30 +683,8 @@ fetch_app <- function(fetch_data, title = NULL) {
       })
     })
 
-    # Display click results in sidebar
-    output$click_results <- shiny::renderUI({
-      res <- click_result()
-      if (is.null(res)) return(NULL)
-
-      shiny::tagList(
-        shiny::hr(),
-        shiny::h5("Custom Point Results:"),
-        shiny::p(shiny::strong("Lake: "), res$lake_name),
-        shiny::p(shiny::strong("Mean Fetch: "), sprintf("%.1f m", res$fetch_mean)),
-        shiny::p(shiny::strong("Max Fetch: "), sprintf("%.1f m", res$fetch_max)),
-        shiny::p(shiny::strong("Effective Fetch: "), sprintf("%.1f km", res$fetch_effective / 1000)),
-        shiny::p(shiny::strong("Orbital Velocity: "), sprintf("%.3f m/s", res$orbital)),
-        shiny::p(shiny::strong("Exposure: "),
-          shiny::span(res$exposure, style = sprintf("color: %s; font-weight: bold;",
-            switch(res$exposure,
-              "Exposed" = "firebrick",
-              "Moderate" = "goldenrod",
-              "Sheltered" = "forestgreen"
-            )
-          ))
-        )
-      )
-    })
+    # Note: output$click_results is set directly inside observeEvent(input$map_click)
+    # and observeEvent(input$map_marker_click) so the rose diagram always updates correctly.
 
     # Clear custom point
     shiny::observeEvent(input$clear_click, {
@@ -703,8 +754,8 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
     shiny::tags$head(
       shiny::tags$style(shiny::HTML("
         .progress-message { color: #666; font-style: italic; margin: 10px 0; }
-        .error-message { color: firebrick; font-weight: bold; }
-        .success-message { color: forestgreen; font-weight: bold; }
+        .error-message { color: #D55E00; font-weight: bold; font-weight: bold; }
+        .success-message { color: #0072B2; font-weight: bold; font-weight: bold; }
       "))
     ),
     shiny::titlePanel(title),
@@ -717,7 +768,21 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
           shiny::fileInput("file_upload", "Choose CSV File",
                            accept = c("text/csv", ".csv")),
           shiny::helpText("CSV must have columns starting with 'lat' and 'lon'"),
+          shiny::helpText("Maximum 50 sites for the web app. For larger datasets,",
+                          "use the lakefetch R package locally:",
+                          shiny::code("install.packages('lakefetch')")),
           shiny::helpText("Optional: include a 'datetime' column for weather analysis"),
+          shiny::tags$hr(style = "margin: 10px 0;"),
+          shiny::fileInput("lake_upload",
+                           "Optional: lake boundary file",
+                           accept = c(".gpkg", ".shp", ".geojson", ".kml",
+                                      "application/octet-stream",
+                                      "application/geopackage+sqlite3",
+                                      "application/json"),
+                           multiple = TRUE),
+          shiny::helpText("Skip the OSM download by supplying your own lake",
+                          "boundary polygon. For shapefiles, upload all of",
+                          ".shp, .shx, .dbf, .prj (multi-select)."),
           shiny::hr(),
           shiny::h5("Options"),
           shiny::numericInput("water_depth", "Water depth (m)", value = 5, min = 0.5, max = 100),
@@ -776,7 +841,14 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
           shiny::hr(),
           shiny::h5("Selected Site:"),
           shiny::textOutput("selected_site"),
-          shiny::uiOutput("click_results"),
+          shiny::uiOutput("site_details_upload"),
+          shiny::conditionalPanel(
+            condition = "output.has_click_result_upload == true",
+            shiny::hr(),
+            shiny::h5("Custom Point Analysis:",
+                      style = "color: #B36A00;"),
+            shiny::uiOutput("click_results")
+          ),
           shiny::hr(),
           shiny::h5("Color Legend:"),
           shiny::uiOutput("legend_text"),
@@ -839,12 +911,35 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
     })
     shiny::outputOptions(output, "has_results", suspendWhenHidden = FALSE)
 
+    # Drives the "Custom Point Analysis" conditionalPanel so the user can
+    # see their click-analysis result even after they click a preloaded
+    # marker (whose rose plot fills site_details_upload).
+    output$has_click_result_upload <- shiny::reactive({
+      !is.null(rv$click_result)
+    })
+    shiny::outputOptions(output, "has_click_result_upload",
+                          suspendWhenHidden = FALSE)
+
     # Handle file upload
     shiny::observeEvent(input$file_upload, {
       req(input$file_upload)
 
       tryCatch({
         rv$sites <- load_sites(input$file_upload$datapath)
+
+        # Enforce 50-site limit for web app
+        if (nrow(rv$sites) > 50) {
+          rv$error <- paste0(
+            "Your file has ", nrow(rv$sites), " sites. ",
+            "The web app supports up to 50 sites. ",
+            "For larger datasets, install the lakefetch R package locally: ",
+            "install.packages('lakefetch')"
+          )
+          rv$status <- NULL
+          rv$sites <- NULL
+          rv$has_datetime <- FALSE
+          return()
+        }
 
         # Check if datetime column was detected
         rv$has_datetime <- "datetime" %in% names(rv$sites)
@@ -898,9 +993,32 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
             exposure_relative_exposed = input$rel_exposed
           )
 
-          # Step 1: Get lake boundaries
-          shiny::incProgress(0.15, detail = "Downloading lake boundaries from OSM...")
-          rv$lake_data <- get_lake_boundary(rv$sites)
+          # Step 1: Get lake boundaries. If the user uploaded a boundary
+          # file, use it directly and skip the OSM query. Shapefiles come as
+          # multiple files (.shp/.shx/.dbf/.prj); we move them into a single
+          # temp directory and hand the .shp path to get_lake_boundary().
+          if (!is.null(input$lake_upload) && nrow(input$lake_upload) > 0) {
+            shiny::incProgress(0.15,
+                                detail = "Loading uploaded lake boundary...")
+            uploads <- input$lake_upload
+            main_path <- if (nrow(uploads) == 1) {
+              uploads$datapath[1]
+            } else {
+              tmp_dir <- tempfile("lake_boundary_"); dir.create(tmp_dir)
+              for (i in seq_len(nrow(uploads))) {
+                file.copy(uploads$datapath[i],
+                          file.path(tmp_dir, uploads$name[i]))
+              }
+              shp <- list.files(tmp_dir, pattern = "\\.shp$",
+                                 full.names = TRUE)[1]
+              if (is.na(shp)) uploads$datapath[1] else shp
+            }
+            rv$lake_data <- get_lake_boundary(rv$sites, file = main_path)
+          } else {
+            shiny::incProgress(0.15,
+                                detail = "Downloading lake boundaries from OSM...")
+            rv$lake_data <- get_lake_boundary(rv$sites)
+          }
 
           # Step 2: Calculate fetch
           shiny::incProgress(0.25, detail = "Calculating fetch...")
@@ -968,7 +1086,7 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
 
     # Color palettes
     exposure_pal <- leaflet::colorFactor(
-      palette = c("firebrick", "goldenrod", "forestgreen"),
+      palette = c("#D55E00", "#E69F00", "#0072B2"),
       levels = c("Exposed", "Moderate", "Sheltered")
     )
 
@@ -977,7 +1095,7 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
       s_m <- input$sheltered_m
       e_m <- input$exposed_m
       leaflet::colorBin(
-        palette = c("forestgreen", "gold", "firebrick"),
+        palette = c("#0072B2", "#E69F00", "#D55E00"),
         domain = c(0, max(e_m * 2, 10000)),
         bins = c(0, s_m, e_m, max(e_m * 10, 50000))
       )
@@ -988,12 +1106,12 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
       s_m <- input$sheltered_m
       e_m <- input$exposed_m
       shiny::tagList(
-        shiny::p(style = "color: firebrick;",
-          sprintf("Red: > %.1f km (Exposed)", e_m / 1000)),
-        shiny::p(style = "color: gold;",
-          sprintf("Gold: %.1f-%.1f km (Moderate)", s_m / 1000, e_m / 1000)),
-        shiny::p(style = "color: forestgreen;",
-          sprintf("Green: < %.1f km (Sheltered)", s_m / 1000))
+        shiny::p(style = "color: #D55E00; font-weight: bold;",
+          sprintf("Exposed: > %.1f km", e_m / 1000)),
+        shiny::p(style = "color: #B36A00; font-weight: bold;",
+          sprintf("Moderate: %.1f-%.1f km", s_m / 1000, e_m / 1000)),
+        shiny::p(style = "color: #0072B2; font-weight: bold;",
+          sprintf("Sheltered: < %.1f km", s_m / 1000))
       )
     })
 
@@ -1111,16 +1229,32 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
       }
 
       m <- leaflet::leaflet(results_wgs) |>
-        leaflet::addProviderTiles("Esri.WorldImagery") |>
+        leaflet::addProviderTiles("Esri.WorldImagery", group = "Imagery") |>
+        leaflet::addTiles(group = "OSM") |>
+        leaflet::addTiles(
+          urlTemplate = paste0("https://basemap.nationalmap.gov/arcgis/rest/",
+                                "services/USGSHydroCached/MapServer/tile/",
+                                "{z}/{y}/{x}"),
+          attribution = "USGS The National Map: National Hydrography Dataset",
+          options = leaflet::tileOptions(opacity = 0.8),
+          group = "USGS NHD"
+        ) |>
+        leaflet::addLayersControl(
+          baseGroups = c("Imagery", "OSM"),
+          overlayGroups = "USGS NHD",
+          options = leaflet::layersControlOptions(collapsed = FALSE)
+        ) |>
+        leaflet::hideGroup("USGS NHD") |>
         leaflet::addPolygons(data = lakes_wgs,
                     fill = FALSE, color = "white",
                     weight = 1, opacity = 0.3)
 
       # Cluster markers when many sites or wide geographic spread
+      # Use isTRUE() to guard against NA (can occur if bbox has NA values)
       bbox_wgs <- sf::st_bbox(results_wgs)
       geo_span_upload <- max(bbox_wgs["xmax"] - bbox_wgs["xmin"],
                              bbox_wgs["ymax"] - bbox_wgs["ymin"])
-      use_cluster <- n_sites > 30 || geo_span_upload > 5
+      use_cluster <- isTRUE(n_sites > 30) || isTRUE(geo_span_upload > 5)
 
       if (use_cluster) {
         m <- m |> leaflet::addCircleMarkers(
@@ -1211,8 +1345,11 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
           )
       }
 
-      # Generate rose plot on demand for sidebar
-      output$click_results <- shiny::renderUI({
+      # Generate rose plot for the selected pre-loaded marker. Render into
+      # output$site_details_upload (the upper sidebar slot) - NOT into
+      # output$click_results, which belongs to the custom-point analysis and
+      # would otherwise be clobbered every time the user clicks a marker.
+      output$site_details_upload <- shiny::renderUI({
         rose_b64 <- make_rose_plot_base64(site_row, site_id)
 
         lake_nm <- if (!is.na(site_row$lake_name)) site_row$lake_name else ""
@@ -1240,9 +1377,9 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
           shiny::p(shiny::strong("Exposure: "),
             shiny::span(site_row$exposure_category, style = sprintf("color: %s; font-weight: bold;",
               switch(as.character(site_row$exposure_category),
-                "Exposed" = "firebrick",
-                "Moderate" = "goldenrod",
-                "Sheltered" = "forestgreen"
+                "Exposed" = "#D55E00",
+                "Moderate" = "#E69F00",
+                "Sheltered" = "#0072B2"
               )
             ))
           ),
@@ -1341,10 +1478,39 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
         )
 
         exp_color <- switch(exposure,
-          "Exposed" = "firebrick",
-          "Moderate" = "goldenrod",
-          "Sheltered" = "forestgreen"
+          "Exposed" = "#D55E00",
+          "Moderate" = "#E69F00",
+          "Sheltered" = "#0072B2"
         )
+
+        # Generate rose for custom point and explicitly rebind output$click_results
+        fetch_row <- as.data.frame(t(fetch_dists))
+        colnames(fetch_row) <- paste0("fetch_", angles)
+        fetch_row_sf <- sf::st_sf(fetch_row,
+                                   geometry = sf::st_sfc(nudged_pt, crs = utm_epsg))
+        rose_b64 <- tryCatch(
+          make_rose_plot_base64(fetch_row_sf, lake_name),
+          error = function(e) ""
+        )
+
+        output$click_results <- shiny::renderUI({
+          shiny::tagList(
+            if (nzchar(rose_b64)) shiny::tags$img(src = rose_b64, width = "100%"),
+            shiny::hr(),
+            shiny::h5("Custom Point Results:"),
+            shiny::p(shiny::strong("Lake: "), lake_name),
+            shiny::p(shiny::strong("Effective Fetch: "),
+                     sprintf("%.1f km", fetch_effective / 1000)),
+            shiny::p(shiny::strong("Mean Fetch: "), sprintf("%.1f m", fetch_mean)),
+            shiny::p(shiny::strong("Max Fetch: "), sprintf("%.1f m", fetch_max)),
+            shiny::p(shiny::strong("Orbital Velocity: "), sprintf("%.3f m/s", orbital)),
+            shiny::p(shiny::strong("Exposure: "),
+              shiny::span(exposure, style = sprintf("color: %s; font-weight: bold;",
+                exp_color
+              ))
+            )
+          )
+        })
 
         cur_ray_pal <- ray_pal_reactive()
         leaflet::leafletProxy("map") |>
@@ -1381,30 +1547,8 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
       })
     })
 
-    # Display click results
-    output$click_results <- shiny::renderUI({
-      res <- rv$click_result
-      if (is.null(res)) return(NULL)
-
-      shiny::tagList(
-        shiny::hr(),
-        shiny::h5("Analysis Results:"),
-        shiny::p(shiny::strong("Lake: "), res$lake_name),
-        shiny::p(shiny::strong("Mean Fetch: "), sprintf("%.1f m", res$fetch_mean)),
-        shiny::p(shiny::strong("Max Fetch: "), sprintf("%.1f m", res$fetch_max)),
-        shiny::p(shiny::strong("Effective Fetch: "), sprintf("%.1f km", res$fetch_effective / 1000)),
-        shiny::p(shiny::strong("Orbital Velocity: "), sprintf("%.3f m/s", res$orbital)),
-        shiny::p(shiny::strong("Exposure: "),
-          shiny::span(res$exposure, style = sprintf("color: %s; font-weight: bold;",
-            switch(res$exposure,
-              "Exposed" = "firebrick",
-              "Moderate" = "goldenrod",
-              "Sheltered" = "forestgreen"
-            )
-          ))
-        )
-      )
-    })
+    # Note: output$click_results is set directly inside observeEvent(input$map_click)
+    # and observeEvent(input$map_marker_click) so the rose diagram always updates correctly.
 
     # Download CSV
     output$download_csv <- shiny::downloadHandler(
@@ -1424,7 +1568,10 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
       }
     )
 
-    # Download GeoPackage
+    # Download GeoPackage. A GeoPackage can hold multiple layers, so we write
+    # THREE: the sites (with fetch attributes), the directional fetch rays
+    # (one row per direction per site, with distance in meters), and the lake
+    # polygons. Users typically want all three for downstream GIS work.
     output$download_gpkg <- shiny::downloadHandler(
       filename = function() {
         paste0("fetch_results_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".gpkg")
@@ -1433,7 +1580,29 @@ fetch_app_upload <- function(title = "Lake Fetch Calculator") {
         req(rv$fetch_data)
         results_wgs <- sf::st_transform(rv$fetch_data$results, 4326)
         results_wgs$rose_plot <- NULL
-        sf::st_write(results_wgs, file, driver = "GPKG", delete_dsn = TRUE)
+
+        # Layer 1: sites with fetch attributes
+        sf::st_write(results_wgs, file, layer = "sites",
+                     driver = "GPKG", delete_dsn = TRUE, quiet = TRUE)
+
+        # Layer 2: directional fetch rays (one line per site per direction)
+        rays <- tryCatch(
+          create_ray_geometries(rv$fetch_data),
+          error = function(e) NULL
+        )
+        if (!is.null(rays) && nrow(rays) > 0) {
+          rays_wgs <- sf::st_transform(rays, 4326)
+          sf::st_write(rays_wgs, file, layer = "fetch_rays",
+                       driver = "GPKG", append = TRUE, quiet = TRUE)
+        }
+
+        # Layer 3: lake boundary polygons
+        lakes <- rv$fetch_data$lakes
+        if (!is.null(lakes) && nrow(lakes) > 0) {
+          lakes_wgs <- sf::st_transform(lakes, 4326)
+          sf::st_write(lakes_wgs, file, layer = "lakes",
+                       driver = "GPKG", append = TRUE, quiet = TRUE)
+        }
       }
     )
 

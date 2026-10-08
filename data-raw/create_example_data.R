@@ -29,24 +29,24 @@ adirondack_sites <- data.frame(
     rep("Tupper Lake", 3)
   ),
   latitude = c(
-    # Blue Mountain Lake (~43.87°N)
-    43.8721, 43.8695, 43.8648,
-    # Raquette Lake (~43.82°N)
-    43.8234, 43.8189, 43.8267, 43.8156,
-    # Long Lake (~43.98°N)
-    43.9812, 43.9756,
-    # Tupper Lake (~44.23°N)
-    44.2298, 44.2245, 44.2187
+    # Blue Mountain Lake - verified in-water (OSM relation 2202972)
+    43.8645, 43.8674, 43.8648,
+    # Raquette Lake - verified in-water (OSM relation; lake area ~22 km2)
+    43.8613, 43.8196, 43.8474, 43.8210,
+    # Long Lake - verified in-water (OSM relation 1871997)
+    43.9846, 43.9756,
+    # Tupper Lake - verified in-water (OSM relation; lake area ~21 km2)
+    44.2288, 44.2121, 44.1818
   ),
   longitude = c(
-    # Blue Mountain Lake (~74.44°W)
-    -74.4412, -74.4356, -74.4489,
-    # Raquette Lake (~74.66°W)
-    -74.6623, -74.6578, -74.6701, -74.6534,
+    # Blue Mountain Lake (~74.45°W)
+    -74.4404, -74.4542, -74.4489,
+    # Raquette Lake (~74.63°W)
+    -74.6540, -74.6443, -74.6387, -74.6090,
     # Long Lake (~74.42°W)
-    -74.4234, -74.4189,
-    # Tupper Lake (~74.46°W)
-    -74.4612, -74.4567, -74.4498
+    -74.4128, -74.4189,
+    # Tupper Lake (~74.50°W)
+    -74.4675, -74.4824, -74.5022
   ),
   datetime = as.POSIXct(c(
     "2024-07-15 09:30:00", "2024-07-15 10:15:00", "2024-07-15 11:00:00",
@@ -63,29 +63,45 @@ cat("Created adirondack_sites:", nrow(adirondack_sites), "sites across",
 # ==============================================================================
 # Dataset 2: example_lake
 # ==============================================================================
-# A simple circular lake polygon for demonstration and testing.
-# This synthetic lake has known geometry for validation.
+# The real OpenStreetMap polygon for Blue Mountain Lake (Hamilton County,
+# NY). Bundling this lets @examples and the pkgdown site render plots
+# without needing an internet connection to Overpass, and matches the
+# location of inst/extdata/sample_sites.csv so the two can be used together.
 
-center_x <- 500000
-center_y <- 4800000
-radius <- 1000  # 1 km radius
-n_points <- 360
+message("Fetching Blue Mountain Lake polygon from OpenStreetMap...")
+library(osmdata)
 
-angles <- seq(0, 2 * pi, length.out = n_points + 1)
-x <- center_x + radius * cos(angles)
-y <- center_y + radius * sin(angles)
+bml_bbox <- c(left = -74.47, bottom = 43.855,
+              right = -74.42, top = 43.885)
+bml_osm <- opq(bbox = bml_bbox, timeout = 120) |>
+  add_osm_feature(key = "name", value = "Blue Mountain Lake",
+                   value_exact = FALSE) |>
+  osmdata_sf()
 
-coords <- cbind(x, y)
-poly <- st_polygon(list(coords))
+# The lake is stored as an OSM relation, so it appears in osm_multipolygons.
+if (is.null(bml_osm$osm_multipolygons) ||
+    nrow(bml_osm$osm_multipolygons) == 0) {
+  stop("Could not fetch Blue Mountain Lake polygon from OSM. ",
+       "Retry when Overpass is responsive.")
+}
 
-example_lake <- st_sf(
-  osm_id = "example_001",
-  name = "Example Circular Lake",
-  area_km2 = pi * (radius/1000)^2,
-  geometry = st_sfc(poly, crs = 32618)  # UTM 18N
+# Take the largest matching multipolygon in case OSM returns duplicates.
+bml_wgs <- bml_osm$osm_multipolygons
+bml_wgs <- bml_wgs[which.max(as.numeric(sf::st_area(bml_wgs))), ]
+
+# Store in UTM 18N (matches sample_sites.csv location).
+bml_utm <- sf::st_transform(bml_wgs, 32618)
+bml_utm <- sf::st_make_valid(bml_utm)
+
+example_lake <- sf::st_sf(
+  osm_id = as.character(bml_utm$osm_id[[1]]),
+  name = "Blue Mountain Lake",
+  area_km2 = as.numeric(sf::st_area(bml_utm)) / 1e6,
+  geometry = sf::st_geometry(bml_utm)
 )
 
-cat("Created example_lake: circular lake with radius", radius, "m\n")
+cat("Created example_lake: Blue Mountain Lake,",
+    round(example_lake$area_km2, 2), "km^2\n")
 
 # ==============================================================================
 # Dataset 3: wisconsin_lakes
@@ -108,8 +124,8 @@ wisconsin_lakes <- data.frame(
     43.1125, 43.0756, 43.0995,
     # Lake Monona
     43.0634, 43.0589,
-    # Geneva Lake
-    42.5912, 42.5834, 42.5878
+    # Geneva Lake (all three verified inside the OSM polygon; see notes below)
+    42.584896, 42.573359, 42.566069
   ),
   longitude = c(
     # Lake Mendota
@@ -117,7 +133,12 @@ wisconsin_lakes <- data.frame(
     # Lake Monona
     -89.3612, -89.3789,
     # Geneva Lake
-    -88.4312, -88.5123, -88.4756
+    #   Geneva_E:      northeast area of the lake
+    #   Geneva_W:      western portion
+    #   Geneva_Center: south-central portion
+    # The lake's actual OSM bbox is 42.5455-42.5914 N, -88.5727 to -88.4329 W;
+    # earlier coordinates in this dataset were on land near the shore.
+    -88.442054, -88.535460, -88.501107
   ),
   stringsAsFactors = FALSE
 )

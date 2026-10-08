@@ -1,0 +1,3 @@
+# Shiny app UI/server code - requires interactive testing or shinytest2
+# Coverage for these functions is demonstrated through manual testing
+R/shiny_app.R

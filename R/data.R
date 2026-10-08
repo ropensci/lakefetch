@@ -37,52 +37,53 @@
 #' # View structure
 #' str(adirondack_sites)
 #'
+#' @examplesIf interactive()
 #' # Use with lakefetch (requires internet connection)
-#' \donttest{
 #' sites <- load_sites(adirondack_sites)
 #' lake_data <- get_lake_boundary(sites)
 #' results <- fetch_calculate(sites, lake_data)
-#' }
 #'
 #' @source Synthetic data for demonstration purposes
 "adirondack_sites"
 
 
-#' Example Circular Lake Polygon
+#' Blue Mountain Lake Polygon (Example Lake)
 #'
-#' A simple circular lake polygon for demonstration and testing purposes.
-#' This synthetic lake has known geometry (1 km radius) which makes it
-#' useful for validating fetch calculations.
+#' The OpenStreetMap boundary polygon for Blue Mountain Lake in Hamilton
+#' County, New York. Bundled with the package so that fetch examples can
+#' run offline (no internet or Overpass API call required) and pkgdown
+#' pages can render plot output. The coordinates match the sites in
+#' \code{system.file("extdata", "sample_sites.csv", package = "lakefetch")},
+#' so the two datasets can be used together end-to-end.
 #'
 #' @name example_lake
 #' @docType data
-#' @format An sf object with 1 row and 3 variables:
+#' @format An sf object with 1 row and 3 fields plus geometry:
 #' \describe{
-#'   \item{osm_id}{Identifier (synthetic)}
-#'   \item{name}{Lake name}
-#'   \item{area_km2}{Surface area in square kilometers (~3.14 km²)}
-#'   \item{geometry}{POLYGON geometry in UTM Zone 18N (EPSG:32618)}
+#'   \item{osm_id}{OSM relation identifier}
+#'   \item{name}{Lake name ("Blue Mountain Lake")}
+#'   \item{area_km2}{Surface area in square kilometers}
+#'   \item{geometry}{MULTIPOLYGON geometry in UTM Zone 18N (EPSG:32618)}
 #' }
 #'
-#' @details
-#' The lake is centered at UTM coordinates (500000, 4800000) with a radius
-#' of 1000 meters. For a site at the center, fetch should equal 1000 m in
-#' all directions.
-#'
 #' @examples
-#' # Load the dataset
 #' data(example_lake)
-#'
-#' # View structure
 #' print(example_lake)
 #'
 #' # Plot the lake
-#' \donttest{
 #' library(ggplot2)
 #' ggplot(example_lake) + geom_sf()
-#' }
 #'
-#' @source Synthetic data for demonstration and validation
+#' # Load matching sample sites (they lie inside this polygon) and
+#' # compute fetch end-to-end without touching OSM. First convert
+#' # example_lake into the multi-lake list format that fetch_calculate()
+#' # expects:
+#' sites <- load_sites(system.file("extdata", "sample_sites.csv",
+#'                                  package = "lakefetch"))
+#'
+#' @source Downloaded from OpenStreetMap
+#'   \url{https://www.openstreetmap.org/}. See
+#'   \code{data-raw/create_example_data.R} for the exact query.
 "example_lake"
 
 
@@ -117,12 +118,11 @@
 #' # View the data
 #' head(wisconsin_lakes)
 #'
+#' @examplesIf interactive()
 #' # Use with lakefetch (requires internet connection)
-#' \donttest{
 #' sites <- load_sites(wisconsin_lakes)
 #' lake_data <- get_lake_boundary(sites)
 #' results <- fetch_calculate(sites, lake_data)
-#' }
 #'
 #' @source Synthetic data based on real lake locations
 "wisconsin_lakes"

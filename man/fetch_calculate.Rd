@@ -18,9 +18,12 @@ fetch_calculate(
 
 \item{lake}{Lake boundary data from \code{\link{get_lake_boundary}}}
 
-\item{depth_m}{Water depth in meters for orbital velocity calculation.
-Can be a single value (applied to all sites), a vector (one per site),
-or NULL to use depth from sites data or default from options.}
+\item{depth_m}{Mean water depth in meters for orbital velocity calculation
+(used in the SMB wave hindcast equations). Can be a single value (applied
+to all sites), a vector (one per site), or NULL to use depth from sites
+data or the default from \code{\link{lakefetch_options}}. Mean depth is
+preferred over maximum depth as it better represents conditions across
+the water column for wave attenuation estimates.}
 
 \item{fetch_method}{Method for calculating effective fetch. Options:
 \describe{
@@ -68,7 +71,7 @@ For each site, the function:
 Exposure thresholds can be configured via \code{\link{lakefetch_options}}.
 }
 \examples{
-\donttest{
+\dontshow{if (interactive()) withAutoprint(\{ # examplesIf}
 csv_path <- system.file("extdata", "sample_sites.csv", package = "lakefetch")
 sites <- load_sites(csv_path)
 lake <- get_lake_boundary(sites)
@@ -87,8 +90,7 @@ results$lakes    # lake polygons
 # Find the location with maximum fetch in each lake
 results <- fetch_calculate(sites, lake, find_max_fetch = TRUE)
 results$max_fetch  # sf with max fetch location per lake
-}
-
+\dontshow{\}) # examplesIf}
 }
 \references{
 Shore Protection Manual (1984). U.S. Army Corps of Engineers, Coastal
