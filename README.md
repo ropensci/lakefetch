@@ -193,7 +193,7 @@ citation("lakefetch")
 
 ## AI Assistance Disclosure
 
-This package was developed collaboratively with [Claude](https://claude.ai) (Anthropic). Claude contributed to all aspects of the codebase, including package architecture, function implementation, test writing, documentation, and CI/CD configuration. All code was reviewed and directed by the package author. Claude is credited as co-author on all commits via `Co-Authored-By` tags.
+This package was developed collaboratively with Claude (Anthropic). Claude contributed to all aspects of the codebase, including package architecture, function implementation, test writing, documentation, and CI/CD configuration. All code was reviewed and directed by the package author. Claude is credited as co-author on all commits via `Co-Authored-By` tags.
 
 ## Contributing
 

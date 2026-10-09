@@ -38,6 +38,6 @@ Suggests:
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-URL: https://docs.ropensci.org/lakefetch,
+URL: https://docs.ropensci.org/lakefetch/,
     https://github.com/ropensci/lakefetch
 BugReports: https://github.com/ropensci/lakefetch/issues

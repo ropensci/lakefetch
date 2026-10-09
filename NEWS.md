@@ -37,7 +37,7 @@ housekeeping steps from the reviewer bot's checklist.
   updated to point at the new location, and the local git remote was
   repointed.
 * Package documentation site moved from a self-deployed pkgdown site to
-  rOpenSci's central docs build at <https://docs.ropensci.org/lakefetch>.
+  rOpenSci's central docs build at <https://docs.ropensci.org/lakefetch/>.
   The standalone `pkgdown` GitHub Actions deploy workflow was removed
   (`.github/workflows/pkgdown.yaml`) along with its README badge.
 * Removed the local `CODE_OF_CONDUCT.md`; rOpenSci's default Code of
