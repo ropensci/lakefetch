@@ -80,6 +80,17 @@
 #' # expects:
 #' sites <- load_sites(system.file("extdata", "sample_sites.csv",
 #'                                  package = "lakefetch"))
+#' sites_sf <- sf::st_transform(
+#'   sf::st_as_sf(sites, coords = c("longitude", "latitude"), crs = 4326,
+#'                remove = FALSE),
+#'   sf::st_crs(example_lake)
+#' )
+#' lake_data <- list(all_lakes = example_lake,
+#'                   sites = sites_sf,
+#'                   utm_epsg = sf::st_crs(example_lake)$epsg)
+#' results <- fetch_calculate(sites, lake_data, add_context = FALSE)
+#' sf::st_drop_geometry(results$results)[, c("Site", "fetch_effective",
+#'                                            "exposure_category")]
 #'
 #' @source Downloaded from OpenStreetMap
 #'   \url{https://www.openstreetmap.org/}. See
