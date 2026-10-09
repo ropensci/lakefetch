@@ -27,16 +27,21 @@ version are in `NEWS.md`; the highlights are:
 
 ## R CMD check results
 
-0 errors | 0 warnings | 1 note
+0 errors | 0 warnings | 0 notes on win-builder R-devel and all R-hub
+platforms.
 
-NOTE: "unable to verify current time" — a routine environment-clock check,
-not related to package content.
+Environment-only NOTEs seen elsewhere, unrelated to package content:
+
+* Win-builder R-release: "Skipping checking math rendering: package 'V8'
+  unavailable" (V8 not installed on the check machine).
+* Local: "unable to verify current time" (no time-server access).
 
 ## Test environments
 
 * Local: Windows 11 x64 (build 26200), R 4.4.1
-* Win-builder: R-devel, R-release
+* Win-builder: R-devel (2026-10-08 r90650 ucrt), R-release (4.6.1 ucrt)
 * R-hub: Linux, macOS ARM64, Windows (R-devel)
+* GitHub Actions: macOS, Windows, Ubuntu (release, oldrel, devel)
 
 ## Downstream dependencies
 
