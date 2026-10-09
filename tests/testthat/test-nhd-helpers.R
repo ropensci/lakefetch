@@ -255,7 +255,7 @@ test_that("calc_distance_bearing gets correct bearing directions", {
 # --- add_lake_context defensive handling of empty / NA-bbox inputs ---
 
 test_that("add_lake_context returns fetch_results unchanged when lake_polygons is empty", {
-  skip_if_not_installed("nhdplusTools")
+  skip_if_not_installed("hydrogeofetch")
 
   # Build minimal fetch_results with NA-typed columns
   fetch_results <- sf::st_sf(
@@ -284,7 +284,7 @@ test_that("add_lake_context returns fetch_results unchanged when lake_polygons i
 })
 
 test_that("add_lake_context skips NHD lookup when lake bbox contains NA", {
-  skip_if_not_installed("nhdplusTools")
+  skip_if_not_installed("hydrogeofetch")
 
   fetch_results <- sf::st_sf(
     Site = "S1",
@@ -308,8 +308,8 @@ test_that("add_lake_context skips NHD lookup when lake bbox contains NA", {
   expect_true("nhd_permanent_id" %in% names(result))
 })
 
-test_that("get_watershed_area returns NA when nhdplusTools unavailable", {
-  # Simulate nhdplusTools not being installed
+test_that("get_watershed_area returns NA when hydrogeofetch unavailable", {
+  # Simulate hydrogeofetch not being installed
   local_mocked_bindings(
     nhd_available = function() FALSE,
     .package = "lakefetch"
@@ -326,7 +326,7 @@ test_that("get_watershed_area returns NA when nhdplusTools unavailable", {
 })
 
 test_that("get_watershed_area returns NA when discover_nhdplus_id fails", {
-  skip_if_not_installed("nhdplusTools")
+  skip_if_not_installed("hydrogeofetch")
 
   ring <- matrix(c(-74, 43, -73.99, 43, -73.99, 43.01,
                    -74, 43.01, -74, 43),
@@ -336,7 +336,7 @@ test_that("get_watershed_area returns NA when discover_nhdplus_id fails", {
   )
 
   local_mocked_bindings(
-    .package = "nhdplusTools",
+    .package = "hydrogeofetch",
     discover_nhdplus_id = function(point) stop("mock network failure")
   )
   result <- lakefetch:::get_watershed_area(NULL, lake_polygon_wgs84)
@@ -344,7 +344,7 @@ test_that("get_watershed_area returns NA when discover_nhdplus_id fails", {
 })
 
 test_that("get_watershed_area returns NA when no NHD comid is returned", {
-  skip_if_not_installed("nhdplusTools")
+  skip_if_not_installed("hydrogeofetch")
 
   ring <- matrix(c(-74, 43, -73.99, 43, -73.99, 43.01,
                    -74, 43.01, -74, 43),
@@ -354,7 +354,7 @@ test_that("get_watershed_area returns NA when no NHD comid is returned", {
   )
 
   local_mocked_bindings(
-    .package = "nhdplusTools",
+    .package = "hydrogeofetch",
     discover_nhdplus_id = function(point) NULL
   )
   result <- lakefetch:::get_watershed_area(NULL, lake_polygon_wgs84)

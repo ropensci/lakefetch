@@ -1,5 +1,12 @@
 # lakefetch 0.1.14
 
+## Dependencies
+
+* The optional NHD integration (`add_lake_context()`) now uses
+  **hydrogeofetch** instead of **nhdplusTools** (Suggests). hydrogeofetch is
+  the drop-in replacement for nhdplusTools, which its maintainer plans to
+  retire from CRAN (#5, @dblodgett-usgs).
+
 ## Bug fixes
 
 * **`fetch_mean`/`fetch_max`/`fetch_effective` returned `NaN`/`-Inf` instead

@@ -40,15 +40,15 @@
   "softwareSuggestions": [
     {
       "@type": "SoftwareApplication",
-      "identifier": "nhdplusTools",
-      "name": "nhdplusTools",
+      "identifier": "hydrogeofetch",
+      "name": "hydrogeofetch",
       "provider": {
         "@id": "https://cran.r-project.org",
         "@type": "Organization",
         "name": "Comprehensive R Archive Network (CRAN)",
         "url": "https://cran.r-project.org"
       },
-      "sameAs": "https://CRAN.R-project.org/package=nhdplusTools"
+      "sameAs": "https://CRAN.R-project.org/package=hydrogeofetch"
     },
     {
       "@type": "SoftwareApplication",

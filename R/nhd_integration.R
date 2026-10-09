@@ -69,7 +69,7 @@ add_lake_context <- function(fetch_results, lake_polygons, utm_epsg) {
   # Skip NHD integration entirely if no lakes were matched. This happens when
   # all sites fail assignment (e.g., a site provided as being in "Long Lake"
   # but coordinates were >500m from any OSM Long Lake polygon). In that case
-  # the bbox would contain NAs and nhdplusTools::get_waterbodies() would
+  # the bbox would contain NAs and hydrogeofetch::get_waterbodies() would
   # error out with "!anyNA(x) is not TRUE".
   if (is.null(lake_polygons) || nrow(lake_polygons) == 0) {
     message("  No matched lake polygons - skipping NHD lookup")

@@ -21,6 +21,9 @@ version are in `NEWS.md`; the highlights are:
   `ropensci/lakefetch` following review approval; all links (README,
   DESCRIPTION, man pages, `codemeta.json`, `CITATION`) updated accordingly
 * Removal of unused internal helper functions flagged during review
+* Suggested dependency `nhdplusTools` replaced by its drop-in successor
+  `hydrogeofetch`, at the request of their maintainer, who plans to retire
+  `nhdplusTools` from CRAN
 
 ## R CMD check results
 

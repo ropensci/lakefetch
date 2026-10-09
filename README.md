@@ -14,7 +14,7 @@ Calculate fetch (open water distance) and wave exposure metrics for freshwater l
 
 **Fetch** is the unobstructed distance that wind can travel across open water. It is a key physical driver in lakes because it controls wave height, wave energy, and shoreline exposure. Fetch influences sediment resuspension, nutrient cycling, littoral habitat structure, and the distribution of aquatic organisms. Despite its importance, calculating fetch for inland lakes has required either manual GIS work or tools designed for coastal/marine environments that do not handle the irregular shorelines and small spatial scales typical of lakes.
 
-**lakefetch** fills this gap by providing an end-to-end R workflow for freshwater fetch analysis: it downloads lake boundary polygons from OpenStreetMap, calculates directional fetch via a ray-casting algorithm, classifies sites by wave exposure, and optionally integrates weather data to estimate cumulative wave energy. It can also pull hydrological context (outlets, inlets, watershed area, connectivity) from the US National Hydrography Dataset (NHD) via the [nhdplusTools](https://cran.r-project.org/package=nhdplusTools) package. The package is designed for batch processing across many lakes and sites, making it practical for large-scale ecological and limnological studies.
+**lakefetch** fills this gap by providing an end-to-end R workflow for freshwater fetch analysis: it downloads lake boundary polygons from OpenStreetMap, calculates directional fetch via a ray-casting algorithm, classifies sites by wave exposure, and optionally integrates weather data to estimate cumulative wave energy. It can also pull hydrological context (outlets, inlets, watershed area, connectivity) from the US National Hydrography Dataset (NHD) via the [hydrogeofetch](https://cran.r-project.org/package=hydrogeofetch) package. The package is designed for batch processing across many lakes and sites, making it practical for large-scale ecological and limnological studies.
 
 Other R packages calculate fetch for related use cases. [fetchR](https://cran.r-project.org/package=fetchR), [waver](https://cran.r-project.org/package=waver), and [windfetch](https://github.com/blasee/windfetch) target coastal/marine environments and require the user to supply coastline polygons; [lakemorpho](https://cran.r-project.org/package=lakemorpho) computes fetch as one of many morphometric parameters on a single user-supplied lake polygon. lakefetch is distinguished by its lake focus and automatic OpenStreetMap-based boundary download for batch workflows. See [Similar Packages](#similar-packages) below for a detailed comparison.
 
@@ -82,7 +82,7 @@ Three effective fetch methods are available: `"top3"` (default), `"max"`, and `"
 - **Exposure classification**: Sites are categorized as Sheltered, Moderate, or Exposed based on configurable thresholds.
 - **Wave energy estimation**: Empirical wave hindcasting using the Sverdrup-Munk-Bretschneider (SMB) equations with depth-attenuated orbital velocity, based on directional fetch and historical wind data.
 - **Depth estimation**: Empirical mean and maximum depth from lake surface area using the global scaling relationship of Cael et al. (2017).
-- **NHD integration** (optional, US lakes): Identifies outlets, inlets, stream order, watershed area, and connectivity classification using the National Hydrography Dataset via the nhdplusTools package.
+- **NHD integration** (optional, US lakes): Identifies outlets, inlets, stream order, watershed area, and connectivity classification using the National Hydrography Dataset via the hydrogeofetch package.
 - **Weather integration** (optional): Retrieves historical hourly weather data from the Open-Meteo API and computes windowed summary statistics (wind speed, direction, temperature, precipitation, wave energy) for user-specified time periods before each sampling event.
 - **Visualization**: Static plots (fetch maps, bar charts, directional rose diagrams) and two interactive Shiny applications for point-and-click exploration and CSV upload workflows.
 
@@ -117,7 +117,7 @@ fetch_app(results)
 | `get_lake_boundary()` | Download lake polygons from OSM or load from local file |
 | `fetch_calculate()` | Calculate directional fetch, effective fetch, and exposure class |
 | `add_lake_depth()` | Estimate lake depth from surface area (Cael et al. 2017) |
-| `add_lake_context()` | Add NHD hydrological context (US lakes; requires nhdplusTools) |
+| `add_lake_context()` | Add NHD hydrological context (US lakes; requires hydrogeofetch) |
 | `add_weather_context()` | Add historical weather and wave energy metrics (requires jsonlite) |
 | `plot_fetch_map()` | Map of sites colored by exposure category |
 | `plot_fetch_bars()` | Bar chart of effective fetch by site |
