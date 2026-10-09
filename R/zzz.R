@@ -81,10 +81,10 @@ NULL
 
 .onAttach <- function(libname, pkgname) {
   # Check for optional dependencies
-  nhd_msg <- if (requireNamespace("nhdplusTools", quietly = TRUE)) {
-    "nhdplusTools available - NHD integration enabled"
+  nhd_msg <- if (requireNamespace("hydrogeofetch", quietly = TRUE)) {
+    "hydrogeofetch available - NHD integration enabled"
   } else {
-    "Install 'nhdplusTools' for outlet/inlet detection"
+    "Install 'hydrogeofetch' for outlet/inlet detection"
   }
 
   packageStartupMessage("lakefetch ", utils::packageVersion("lakefetch"), " loaded")

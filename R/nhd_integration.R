@@ -15,7 +15,7 @@
 #' @return sf object with additional columns for NHD context
 #'
 #' @details
-#' Requires the nhdplusTools package. If not available, returns the input
+#' Requires the hydrogeofetch package. If not available, returns the input
 #' with NA columns added for consistent output format.
 #'
 #' Added columns include:
@@ -59,8 +59,8 @@ add_lake_context <- function(fetch_results, lake_polygons, utm_epsg) {
   fetch_results$lake_watershed_ratio <- NA_real_
 
   if (!nhd_available()) {
-    message("Skipping lake context (nhdplusTools not available)")
-    message("Install with: install.packages('nhdplusTools')")
+    message("Skipping lake context (hydrogeofetch not available)")
+    message("Install with: install.packages('hydrogeofetch')")
     return(fetch_results)
   }
 
@@ -210,7 +210,7 @@ get_nhd_waterbodies <- function(bbox_sfc) {
   message("  Fetching NHD waterbodies...")
 
   tryCatch({
-    nhd_waterbodies <- nhdplusTools::get_waterbodies(AOI = bbox_sfc)
+    nhd_waterbodies <- hydrogeofetch::get_waterbodies(AOI = bbox_sfc)
 
     if (is.null(nhd_waterbodies) || nrow(nhd_waterbodies) == 0) {
       message("    No NHD waterbodies found in area")
@@ -277,7 +277,7 @@ get_outlets_inlets <- function(lake_nhd, lake_polygon_wgs84) {
     lake_bbox[3] <- lake_bbox[3] + 0.02
     lake_bbox[4] <- lake_bbox[4] + 0.02
 
-    flowlines <- nhdplusTools::get_nhdplus(AOI = sf::st_as_sfc(lake_bbox),
+    flowlines <- hydrogeofetch::get_nhdplus(AOI = sf::st_as_sfc(lake_bbox),
                                             realization = "flowline")
 
     if (is.null(flowlines) || nrow(flowlines) == 0) {
@@ -395,7 +395,7 @@ get_watershed_area <- function(lake_nhd, lake_polygon_wgs84) {
     start_point <- sf::st_sfc(sf::st_point(c(coords[1], coords[2])), crs = 4326)
 
     comid <- tryCatch({
-      nhdplusTools::discover_nhdplus_id(point = start_point)
+      hydrogeofetch::discover_nhdplus_id(point = start_point)
     }, error = function(e) NULL)
 
     if (is.null(comid) || length(comid) == 0) {
@@ -403,7 +403,7 @@ get_watershed_area <- function(lake_nhd, lake_polygon_wgs84) {
     }
 
     basin <- tryCatch({
-      nhdplusTools::get_nldi_basin(list(featureSource = "comid",
+      hydrogeofetch::get_nldi_basin(list(featureSource = "comid",
                                          featureID = as.character(comid)))
     }, error = function(e) NULL)
 

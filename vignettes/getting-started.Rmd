@@ -26,7 +26,7 @@ influences wave energy, sediment resuspension, and habitat characteristics.
 install.packages("lakefetch")
 
 # Optional packages for extra features:
-# install.packages("nhdplusTools")                      # NHD integration
+# install.packages("hydrogeofetch")                      # NHD integration
 # install.packages(c("shiny", "leaflet", "base64enc"))  # Interactive app
 ```
 
@@ -136,7 +136,7 @@ lakefetch_reset_options()
 
 ## NHD Integration
 
-If the `nhdplusTools` package is installed, lakefetch can add hydrological
+If the `hydrogeofetch` package is installed, lakefetch can add hydrological
 context from the National Hydrography Dataset:
 - Lake outlet and inlet locations
 - Distance and direction to outlet/inlets from each site

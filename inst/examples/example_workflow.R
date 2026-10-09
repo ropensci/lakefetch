@@ -134,10 +134,10 @@ table(results$results$lake_name)
 lake1_results <- results$results[results$results$lake_name == "Lake Name", ]
 
 # ------------------------------------------------------------------------------
-# 9. NHD Integration (if nhdplusTools installed)
+# 9. NHD Integration (if hydrogeofetch installed)
 # ------------------------------------------------------------------------------
 
-# Additional context columns when nhdplusTools is available:
+# Additional context columns when hydrogeofetch is available:
 # - nhd_permanent_id: NHD identifier
 # - nhd_gnis_name: Official lake name
 # - outlet_dist_m: Distance to lake outlet

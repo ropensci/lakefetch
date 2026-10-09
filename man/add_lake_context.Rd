@@ -22,7 +22,7 @@ Dataset (NHD). Includes outlet/inlet locations, watershed area, connectivity
 classification, and stream order.
 }
 \details{
-Requires the nhdplusTools package. If not available, returns the input
+Requires the hydrogeofetch package. If not available, returns the input
 with NA columns added for consistent output format.
 
 Added columns include:

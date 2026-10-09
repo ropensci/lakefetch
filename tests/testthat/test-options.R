@@ -69,7 +69,7 @@ test_that("default option values are sensible", {
 })
 
 test_that("nhd_available checks correctly", {
-  # This function checks if nhdplusTools is available AND enabled
+  # This function checks if hydrogeofetch is available AND enabled
   result <- lakefetch:::nhd_available()
 
   expect_type(result, "logical")

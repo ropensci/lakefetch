@@ -154,12 +154,12 @@ get_opt <- function(name) {
   getOption(opt_name, .lakefetch_defaults[[name]])
 }
 
-#' Check if nhdplusTools is available
+#' Check if hydrogeofetch is available
 #'
 #' @return Logical indicating if NHD integration is available and enabled
 #' @noRd
 nhd_available <- function() {
-  get_opt("use_nhd") && requireNamespace("nhdplusTools", quietly = TRUE)
+  get_opt("use_nhd") && requireNamespace("hydrogeofetch", quietly = TRUE)
 }
 
 #' Check if parallel processing is available

@@ -212,7 +212,7 @@ test_that("match_lake_to_nhd returns NULL for non-overlapping waterbodies", {
 
 # --- add_lake_context with nhd unavailable ---
 
-test_that("add_lake_context adds NA columns when nhdplusTools not available", {
+test_that("add_lake_context adds NA columns when hydrogeofetch not available", {
   lake <- create_circular_lake(radius = 1000)
   site <- create_site(500000, 4800000, name = "Test")
   site$lake_osm_id <- "test_circle"
